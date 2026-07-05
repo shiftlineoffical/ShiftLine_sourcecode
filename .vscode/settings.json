@@ -1,0 +1,23 @@
+{
+    "Lua.runtime.version": "LuaJIT",
+    "Lua.diagnostics.globals": [
+        "love"
+    ],
+    "Lua.workspace.library": [
+        "${3rd}/love2d/library"
+    ],
+    "Lua.workspace.checkThirdParty": false
+}
+{
+    // ——— AI補完（Windsurf）設定
+    "windsurf.autocomplete.enable": true,
+    "github.copilot.chat.agent.terminal.autoApprove": true,
+    // コード補完のトリガー
+    "windsurf.completion.triggerCharacters": ["/"],
+    // AI補完のソース
+    "windsurf.suggestionSources": ["ai", "buffer", "lsp"],
+    // 補完の優先順
+    "editor.suggestSelection": "first",
+    // AI補完のログレベル
+    "windsurf.logLevel": "warn"
+}

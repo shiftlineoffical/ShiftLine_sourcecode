@@ -1,0 +1,260 @@
+end
+
+local function startStoryDebug()
+    console.addLine("startStoryDebug()")
+    gotoScene(6)
+end
+
+local function startExamDebug()
+    console.addLine("startExamDebug()")
+    if type(createExam) == "function" then
+        createExam()
+    else
+        console.addLine("startExamDebug: createExam unavailable")
+    end
+end
+
+local function showRewardDebug()
+    console.addLine("showRewardDebug()")
+    if type(_G) == "table" then
+        _G.rewardOpen = true
+    end
+end
+
+local function reloadStoryDebug()
+    console.addLine("reloadStoryDebug()")
+    if type(reloadCurrentChart) == "function" then
+        reloadCurrentChart()
+    else
+        console.addLine("reloadStoryDebug: reloadCurrentChart unavailable")
+    end
+end
+
+local function createExamDebug()
+    console.addLine("createExamDebug()")
+    startExamDebug()
+end
+
+console.debugCommands = {
+    debug_story = startStoryDebug,
+    debug_exam = startExamDebug,
+    debug_reward = showRewardDebug,
+    debug_story_reload = reloadStoryDebug,
+    debug_createexam = createExamDebug
+}
+
+function toggleConsoleFlag(name)
+    console.flags[name] = not console.flags[name]
+    console.addLine(name .. " = " .. tostring(console.flags[name]))
+end
+
+function parseFlagValue(value)
+    local normalized = trim(tostring(value)):lower()
+    if normalized == "1" or normalized == "true" or normalized == "on" then
+        return true
+    end
+    if normalized == "0" or normalized == "false" or normalized == "off" then
+        return false
+    end
+    return nil
+end
+
+local function setConsoleFlag(name, value)
+    console.flags[name] = value
+    console.addLine(name .. " = " .. tostring(console.flags[name]))
+    if value and console.debugCommands[name] then
+        console.debugCommands[name]()
+    end
+end
+
+local function setOrToggleConsoleFlag(name, args)
+    local value = parseFlagValue(args)
+    if value == nil then
+        toggleConsoleFlag(name)
+        return
+    end
+    setConsoleFlag(name, value)
+end
+
+local function copyConsoleOutput()
+    local text = table.concat(console.lines, "\n")
+    if love and love.system and love.system.setClipboardText then
+        love.system.setClipboardText(text)
+        console.addLine("console output copied to clipboard")
+    else
+        console.addLine("clipboard unavailable")
+    end
+end
+
+local executeAudioCommand, executePlayerCommand
+
+local commands = {
+    help = function() console.showHelp() end,
+    ["?"] = function() console.showHelp() end,
+    status = function() console.showStatus() end,
+    program = function() console.showProgram() end,
+    editor = function() console.showEditor() end,
+    play = function() console.showPlay() end,
+    song = function() console.showSong() end,
+    globals = function() console.showGlobals() end,
+    clear = function() console.clear() end,
+    close = function() console.toggle() end,
+    exit = function() console.toggle() end,
+    log = function() log.info("console: log called") console.addLine("logged info") end,
+    warn = function() log.warn("console: warn called") console.addLine("logged warning") end,
+    error = function() log.error("console: error called") console.addLine("logged error") end,
+    export = function()
+        local debugInfo = "=== Console Debug Export ===\n"
+        debugInfo = debugInfo .. "Program: " .. console.getProgramName(_G.programnumber or -1) .. "(" .. (_G.programnumber or -1) .. ")\n"
+        debugInfo = debugInfo .. "Time: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n\n"
+        debugInfo = debugInfo .. "=== Flags ===\n"
+        for name, value in pairs(console.flags) do
+            debugInfo = debugInfo .. name .. " = " .. tostring(value) .. "\n"
+        end
+        debugInfo = debugInfo .. "\n=== System Info ===\n"
+        debugInfo = debugInfo .. "displayx=" .. (_G.displayx or "?") .. ", displayy=" .. (_G.displayy or "?") .. "\n"
+        debugInfo = debugInfo .. "musictime=" .. (_G.musictime or 0) .. ", musictimer=" .. (_G.musictimer or 0) .. "\n"
+        debugInfo = debugInfo .. "editorStarted=" .. tostring(_G.editorStarted or false) .. ", editorAutoplay=" .. tostring(_G.editorAutoplay or false) .. "\n"
+        writeAppDataFile("console_export", debugInfo)
+        console.addLine("exported debug info to console_export.txt")
+    end,
+    reload = function()
+        if type(reloadCurrentChart) == "function" then
+            reloadCurrentChart()
+            console.addLine("reloadCurrentChart called")
+            return
+        end
+        console.addLine("reload: no reloadCurrentChart function available")
+    end,
+    scene = function(arg)
+        local target = trim(arg or "")
+        if target ~= "" and tonumber(target) then
+            if gotoScene(tonumber(target)) then
+                return
+            end
+        end
+        console.addLine(console.getCurrentProgramSummary())
+    end,
+    sfl_list_set = function(arg) setOrToggleConsoleFlag("sfl_list_set", arg) end,
+    skin_show = function(arg) setOrToggleConsoleFlag("skin_show", arg) end,
+    editor_reloadonreset = function(arg) setOrToggleConsoleFlag("editor_reloadonreset", arg) end,
+    editor_resetscene = function(arg) setOrToggleConsoleFlag("editor_resetscene", arg) end,
+    editor_enable = function(arg) setOrToggleConsoleFlag("editor_enable", arg) end,
+    lang_dubpagish = function(arg) setOrToggleConsoleFlag("lang_dubpagish", arg) end,
+    lang_export = function(arg) setOrToggleConsoleFlag("lang_export", arg) end,
+    lang_test = function(arg) setOrToggleConsoleFlag("lang_test", arg) end,
+    gamejoltuser = function()
+        if not ok_gamejolt or not gamejolt then
+            console.addLine("gamejolt module not available")
+            return
+        end
+        local status = gamejolt.status or {}
+        console.addLine("GameJolt - authenticated=" .. tostring(status.authenticated) .. ", username=" .. tostring(status.username) .. ", userId=" .. tostring(status.userId))
+        console.addLine("avatarUrl=" .. tostring(status.avatarUrl or ""))
+    end,
+    audio_musiclist = function() executeAudioCommand("audio_musiclist") end,
+    audio_sfxlist = function() executeAudioCommand("audio_sfxlist") end,
+    player_data_set = function(arg) executePlayerCommand("player_data_set", arg) end,
+    player_data_get = function(arg) executePlayerCommand("player_data_get", arg) end,
+    player_data_show = function() executePlayerCommand("player_data_show", "") end,
+    player_data_bukup = function() executePlayerCommand("player_data_bukup", "") end,
+    player_data_backup = function() executePlayerCommand("player_data_backup", "") end,
+    player_delete = function(arg) executePlayerCommand("player_delete", arg) end,
+    player_verfy = function() executePlayerCommand("player_verfy", "") end,
+    player_verify = function() executePlayerCommand("player_verify", "") end,
+    story_start = function() startStoryDebug() end,
+    exam_create = function() startExamDebug() end,
+    reward_show = function() showRewardDebug() end,
+    copy_output = function() copyConsoleOutput() end
+}
+
+local function executeGenericCommand(cmd, args)
+    local handler = commands[cmd]
+    if type(handler) == "function" then
+        handler(args)
+        return
+    end
+    if cmd:find("^debug_") then
+        setOrToggleConsoleFlag(cmd, args)
+        return
+    end
+    console.addLine("unknown command: " .. cmd .. ". type help")
+end
+
+local function executePlayerCommand(cmd, args)
+    if cmd == "player_data_set" then
+        local key, value = args:match("^(%S+)%s+(.+)$")
+        if not key or value == "" then
+            console.addLine("usage: player_data_set key value")
+            return
+        end
+        console.playerData[key] = value
+        console.addLine("player data set: " .. key .. "=" .. tostring(value))
+        return
+    end
+    if cmd == "player_data_get" then
+        local key = trim(args)
+        if key == "" then
+            console.addLine("usage: player_data_get key")
+            return
+        end
+        console.addLine(key .. " = " .. formatValue(console.playerData[key]))
+        return
+    end
+    if cmd == "player_data_show" then
+        console.addLine("playerData = " .. formatValue(console.playerData))
+        return
+    end
+    if cmd == "player_data_bukup" or cmd == "player_data_backup" then
+        console.playerDataBackup = {}
+        for k, v in pairs(console.playerData) do
+            console.playerDataBackup[k] = v
+        end
+        console.addLine("playerData backup created")
+        return
+    end
+    if cmd == "player_delete" then
+        local key = trim(args)
+        if key == "" then
+            console.addLine("usage: player_delete key")
+            return
+        end
+        console.playerData[key] = nil
+        console.addLine("player data deleted: " .. key)
+        return
+    end
+    if cmd == "player_verfy" or cmd == "player_verify" then
+        local count = 0
+        for _ in pairs(console.playerData) do
+            count = count + 1
+        end
+        console.addLine("player data entries=" .. count .. ", backup=" .. tostring(next(console.playerDataBackup) ~= nil))
+        return
+    end
+end
+
+local function executeAudioCommand(cmd)
+    if cmd == "audio_musiclist" then
+        local dirs = {"lib/data/BGM", "lib/data/Songs", "BGM", "Songs"}
+        for _, path in ipairs(dirs) do
+            local list, err = listDirectory(path)
+            if list then
+                console.addLine("audio_musiclist: " .. path)
+                for _, item in ipairs(list) do
+                    console.addLine("  " .. item)
+                end
+                return
+            end
+        end
+        console.addLine("audio_musiclist: no directory found")
+        return
+    end
+    if cmd == "audio_sfxlist" then
+        local dirs = {"lib/data/SFX", "SFX", "lib/data/sfx"}
+        for _, path in ipairs(dirs) do
+            local list, err = listDirectory(path)
+            if list then
+                console.addLine("audio_sfxlist: " .. path)
+                for _, item in ipairs(list) do
+                    console.addLine("  " .. item)
+                end
