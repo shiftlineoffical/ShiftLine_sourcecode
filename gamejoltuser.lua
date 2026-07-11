@@ -24,6 +24,10 @@ local function joinPath(a, b)
 end
 
 local function fileExists(path)
+    if love and love.filesystem and love.filesystem.getInfo then
+        local ok, info = pcall(love.filesystem.getInfo, path)
+        if ok and info then return true end
+    end
     local f = io.open(path, "rb")
     if f then
         f:close()
@@ -68,6 +72,12 @@ local function getLoginPath()
 end
 
 local function readFile(path)
+    if love and love.filesystem and love.filesystem.read then
+        local ok, data = pcall(love.filesystem.read, path)
+        if ok and type(data) == "string" and data ~= "" then
+            return data
+        end
+    end
     local f = io.open(path, "rb")
     if not f then return nil end
     local data = f:read("*a")

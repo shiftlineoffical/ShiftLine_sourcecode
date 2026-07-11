@@ -89,9 +89,72 @@ local function decodeEntryToSoundData(entry)
 
     local path = getEntryPath(entry)
     if path then
-        local okSoundData, soundData = pcall(love.sound.newSoundData, path)
-        if okSoundData and soundData then
-            return soundData
+        -- 絶対パス（AppData など）の場合、まず LÖVE のファイルシステム経由で読めないか試みる
+        local fileName = path:match("([^/\\]+)$") or "audio"
+
+        local function path_to_save_relative(p)
+            if not (love and love.filesystem and love.filesystem.getSaveDirectory) then
+                return nil
+            end
+            local ok, saveDir = pcall(love.filesystem.getSaveDirectory)
+            if not ok or type(saveDir) ~= "string" then return nil end
+            -- 正規化
+            local normSave = saveDir:gsub("\\","/")
+            local normPath = p:gsub("\\","/")
+            if normPath:sub(1, #normSave) == normSave then
+                local rel = normPath:sub(#normSave + 2)
+                if rel == "" then rel = "." end
+                return rel
+            end
+            return nil
+        end
+
+        -- LÖVE の save ディレクトリ内にあるか試す
+        local rel = path_to_save_relative(path)
+        if rel and love and love.filesystem and love.filesystem.getInfo then
+            local okRead, contents = pcall(love.filesystem.read, rel)
+            if okRead and contents then
+                local okFileData, fileData = pcall(love.filesystem.newFileData, contents, fileName)
+                if okFileData and fileData then
+                    local okSoundData, soundData = pcall(love.sound.newSoundData, fileData)
+                    if okSoundData and soundData then
+                        return soundData
+                    end
+                end
+                -- 直接パス文字列で newSoundData を試す（LÖVE ファイルシステム内パスとして）
+                local okSoundData2, soundData2 = pcall(love.sound.newSoundData, rel)
+                if okSoundData2 and soundData2 then
+                    return soundData2
+                end
+            end
+        end
+
+        -- 上記で読めない場合は既存のフォールバック（絶対パス: io.open / 相対: love.filesystem による読み込み）
+        local fileContent = nil
+        if path:match("^[A-Za-z]:") or path:match("^/") then
+            -- 絶対パスの場合（ファイルシステム外）
+            local f = io.open(path, "rb")
+            if f then
+                fileContent = f:read("*a")
+                f:close()
+            end
+        end
+
+        if fileContent then
+            -- ファイルコンテンツから FileData を作成
+            local okFileData, fileData = pcall(love.filesystem.newFileData, fileContent, fileName)
+            if okFileData and fileData then
+                local okSoundData, soundData = pcall(love.sound.newSoundData, fileData)
+                if okSoundData and soundData then
+                    return soundData
+                end
+            end
+        else
+            -- 相対パスまたは LÖVE ファイルシステム内のパスの場合
+            local okSoundData, soundData = pcall(love.sound.newSoundData, path)
+            if okSoundData and soundData then
+                return soundData
+            end
         end
     end
 

@@ -146,7 +146,6 @@ local function resumeScript()
         return
     end
 
-    -- If resumed without a known yield reason, continue running until next explicit yield or completion.
     resumeScript()
 end
 
@@ -511,10 +510,6 @@ end
 local function drawStoryLine()
     local visible = visibleText()
 
-    -- 対応フォーマット:
-    -- 1) 名前>>セリフ  (例: ルナ>>おはよう)
-    -- 2) >>セリフ      (名前なしの会話)
-    -- 3) 名前「セリフ」(旧形式)
     local arrowName, arrowText = currentLineText:match("^(.-)>>%s*(.*)$")
     local charName, dialogue
     if arrowText and arrowText ~= "" then
@@ -529,7 +524,6 @@ local function drawStoryLine()
         charName, dialogue = currentLineText:match("^(.-)「(.*)」$")
     end
 
-    -- "ナレーション" ラベルの場合は会話扱いにしない
     if charName then
         local nameTrim = charName:match("^%s*(.-)%s*$") or ""
         local isNarrationLabel = (nameTrim == "ナレーション" or nameTrim == "Narration" or nameTrim == "narration")

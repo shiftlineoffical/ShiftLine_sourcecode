@@ -113,9 +113,9 @@ local function writeAppDataFile(name, content)
     local filename = name .. ".txt"
     local ok, err = pcall(love.filesystem.write, filename, content or "")
     if not ok then
-        console.addLine("failed to write " .. filename .. ": " .. tostring(err))
+        console.addLine("ファイル書き込みエラー " .. filename .. ": " .. tostring(err))
     else
-        console.addLine("wrote AppData file: " .. filename)
+        console.addLine("AppDataファイルに書き込みました: " .. filename)
     end
 end
 
@@ -187,7 +187,7 @@ local function gotoScene(id)
         console.addLine("gotoScene(" .. id .. ")")
         return true
     end
-    console.addLine("gotoScene: changeProgram unavailable")
+    console.addLine("gotoScene: changeProgramが利用できません")
     return false
 end
 
@@ -207,7 +207,7 @@ local function startExamDebug()
     if type(createExam) == "function" then
         createExam()
     else
-        console.addLine("startExamDebug: createExam unavailable")
+        console.addLine("startExamDebug: createExamが利用できません")
     end
 end
 
@@ -223,7 +223,7 @@ local function reloadStoryDebug()
     if type(reloadCurrentChart) == "function" then
         reloadCurrentChart()
     else
-        console.addLine("reloadStoryDebug: reloadCurrentChart unavailable")
+        console.addLine("reloadStoryDebug: reloadCurrentChartが利用できません")
     end
 end
 
@@ -234,7 +234,7 @@ end
 
 local function showGameJoltUserData()
     if not ok_gamejoltuser or not gamejoltuser then
-        console.addLine("gamejoltuser module unavailable")
+        console.addLine("gamejoltuserモジュールが利用できません")
         return
     end
     console.addLine("gamejoltuser.userid=" .. tostring(gamejoltuser.userid))
@@ -247,23 +247,23 @@ local function executeAudioCommand(cmd)
         if type(getMusicList) == "function" then
             local ok, result = pcall(getMusicList)
             if ok then
-                console.addLine("music list ready")
+                console.addLine("音声リストを読み込みました")
                 if type(result) == "table" then
                     for i = 1, math.min(10, #result) do
                         console.addLine("- " .. tostring(result[i]))
                     end
                 end
             else
-                console.addLine("audio_musiclist failed")
+                console.addLine("audio_musiclistコマンドが失敗しました")
             end
         else
-            console.addLine("audio_musiclist: unavailable")
+            console.addLine("audio_musiclist: 利用できません")
         end
         return
     end
 
     if cmd == "audio_sfxlist" then
-        console.addLine("audio_sfxlist: unavailable")
+        console.addLine("audio_sfxlist: 利用できません")
     end
 end
 
@@ -275,17 +275,17 @@ local function executePlayerCommand(cmd, args)
 
     if cmd == "player_data_set" then
         if #parts < 2 then
-            console.addLine("usage: player_data_set key value")
+            console.addLine("使用法: player_data_set キー 値")
             return
         end
         console.playerData[parts[1]] = parts[2]
-        console.addLine("player data set: " .. parts[1] .. "=" .. tostring(parts[2]))
+        console.addLine("プレイヤーデータ設定: " .. parts[1] .. "=" .. tostring(parts[2]))
         return
     end
 
     if cmd == "player_data_get" then
         if #parts < 1 then
-            console.addLine("usage: player_data_get key")
+            console.addLine("使用法: player_data_get キー")
             return
         end
         console.addLine(parts[1] .. " = " .. formatValue(console.playerData[parts[1]]))
@@ -302,17 +302,17 @@ local function executePlayerCommand(cmd, args)
         for k, v in pairs(console.playerData) do
             console.playerDataBackup[k] = v
         end
-        console.addLine("playerData backup created")
+        console.addLine("プレイヤーデータのバックアップを作成しました")
         return
     end
 
     if cmd == "player_delete" then
         if #parts < 1 then
-            console.addLine("usage: player_delete key")
+            console.addLine("使用法: player_delete キー")
             return
         end
         console.playerData[parts[1]] = nil
-        console.addLine("player data deleted: " .. parts[1])
+        console.addLine("プレイヤーデータを削除しました: " .. parts[1])
         return
     end
 
@@ -321,7 +321,7 @@ local function executePlayerCommand(cmd, args)
         for _ in pairs(console.playerData) do
             count = count + 1
         end
-        console.addLine("player data entries=" .. count .. ", backup=" .. tostring(next(console.playerDataBackup) ~= nil))
+        console.addLine("プレイヤーデータエントリ=" .. count .. ", バックアップ=" .. tostring(next(console.playerDataBackup) ~= nil))
         return
     end
 end
@@ -332,15 +332,56 @@ local function copyConsoleOutput()
         love.system.setClipboardText(text)
         console.addLine("console output copied to clipboard")
     else
-        console.addLine("clipboard unavailable")
+    console.addLine("クリップボードが利用できません")
+    end
+end
+
+local function showWatchwuserInfo(args)
+    local musicselect_ok, musicselect = pcall(require, "musicselect")
+    if not musicselect_ok or not musicselect then
+        console.addLine("watchuser: musicselectモジュールが利用できません")
+        return
+    end
+
+    if not musicselect.getWatchuserSongs then
+        console.addLine("watchuser: getWatchuserSongsメソッドが利用できません")
+        return
+    end
+
+    local searchName = trim(args or ""):lower()
+    
+    -- 引数なしまたは特定ユーザーで検索
+    local found_songs = musicselect.getWatchuserSongs(searchName)
+    
+    if #found_songs == 0 then
+        if searchName == "" then
+            console.addLine("watchuser: watchuser制限がある楽曲が見つかりません")
+            console.addLine("  ヒント: 初回検索の場合は、まず音楽選択画面に移動してください")
+        else
+            console.addLine("watchuser: '" .. searchName .. "'でマッチする楽曲が見つかりません")
+        end
+        return
+    end
+    
+    if searchName == "" then
+        console.addLine("watchuser: 制限がある楽曲" .. #found_songs .. "曲")
+    else
+        console.addLine("watchuser '" .. searchName .. "': " .. #found_songs .. "曲")
+    end
+    
+    for _, song in ipairs(found_songs) do
+        local title = song.title or "Unknown"
+        local users = table.concat(song.watchusers, ", ")
+        console.addLine("  [" .. song.index .. "] " .. title .. " (ウォッチャー: " .. users .. ")")
     end
 end
 
 console.debugCommands = {}
 local commandSpecs = {
-    help = {desc = "Show help", handler = function() console.showHelp() end},
-    debug_printerror = {desc = "Toggle debug_printerror", handler = function() toggleFlag("debug_printerror") end},
-    gamejoltuser_data = {desc = "Show GameJolt user data", handler = function() showGameJoltUserData() end}
+    help = {desc = "ヘルプを表示", handler = function() console.showHelp() end},
+    debug_printerror = {desc = "エラー表示を切り替え", handler = function() toggleFlag("debug_printerror") end},
+    gamejoltuser_data = {desc = "GameJoltユーザーデータを表示", handler = function() showGameJoltUserData() end},
+    watchuser = {desc = "ユーザー制限がある楽曲を表示", handler = function(args) showWatchwuserInfo(args) end}
 }
 
 local availableCommands = {}
@@ -393,7 +434,7 @@ function console.getCurrentProgramSummary()
 end
 
 function console.showHelp()
-    console.addLine("Available commands:")
+    console.addLine("利用可能なコマンド:")
     for _, cmd in ipairs(availableCommands) do
         console.addLine(string.format("  %-24s %s", cmd.name, cmd.desc))
     end
@@ -440,7 +481,7 @@ function console.showSong()
         console.addLine("title=" .. formatValue(songData.title) .. ", artist=" .. formatValue(songData.artist))
         console.addLine("level=" .. formatValue(songData.level) .. ", levelColor=" .. formatValue(songData.levelColor))
     else
-        console.addLine("song data is not available")
+        console.addLine("曲データが利用できません")
     end
 end
 
@@ -487,7 +528,7 @@ function console.submitCommand()
         return
     end
 
-    console.addLine("unknown command: " .. cmd .. ". type help")
+    console.addLine("不明なコマンド: " .. cmd .. "。'help'と入力してください")
 end
 
 function console.toggle()
@@ -496,7 +537,8 @@ function console.toggle()
         love.keyboard.setTextInput(console.active)
     end
     if console.active then
-        console.addLine("Console opened. type help for commands.")
+        --英語=Console opened. type help for commands.
+        console.addLine("コンソール version 1.0.0  [help]コマンドでヘルプを表示")
     else
         console.clear()
     end
