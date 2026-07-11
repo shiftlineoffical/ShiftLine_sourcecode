@@ -594,7 +594,6 @@ function settings.draw()
     for i, field in ipairs(settingFields[selectedIndex]) do
         local rx, ry, rw, rh = getFieldRowRect(i)
         
-        -- 逕ｻ髱｢螟悶↓蜃ｺ縺滄・岼縺ｯ謠冗判繧ｹ繧ｭ繝・・
         if ry + rh > maxFieldY then
             break
         end

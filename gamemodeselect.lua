@@ -183,8 +183,8 @@ function gamemodeselect.mousepressed(x, y, button)
     end
 
     if storyPoly and pointInPolygon(x, y, storyPoly) then
-        if not (gamejolt.status and gamejolt.status.authenticated and gamejolt.status.username == "cloudoamp") then
-            log.warn("Story access denied: GameJolt login required as cloudoamp")
+        if not (gamejolt.status and gamejolt.status.authenticated and (gamejolt.status.username == "cloudoamp" or gamejolt.status.username == "hamu132")) then
+            log.warn("Story access denied: GameJolt login required as cloudoamp or hamu132")
             return
         end
         gamemodeselect.selectedmode = 2
@@ -194,8 +194,8 @@ function gamemodeselect.mousepressed(x, y, button)
     end
 
     if settingPoly and pointInPolygon(x, y, settingPoly) then
-        if not (gamejolt.status and gamejolt.status.authenticated and gamejolt.status.username == "cloudoamp") then
-            log.warn("Settings access denied: GameJolt login required as cloudoamp")
+        if not (gamejolt.status and gamejolt.status.authenticated and (gamejolt.status.username == "cloudoamp" or gamejolt.status.username == "hamu132")) then
+            log.warn("Settings access denied: GameJolt login required as cloudoamp or hamu132")
             return
         end
         gamemodeselect.selectedmode = 3
