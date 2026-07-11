@@ -383,23 +383,151 @@ local sflmeta = {}
 local sfldiff = {}
 local sfllevel = {}
 
+local function trimString(text)
+    return type(text) == "string" and text:gsub("^%s+", ""):gsub("%s+$", "") or text
+end
+
+local function parseDiffHeader(header)
+    if type(header) ~= "string" then
+        return nil, nil
+    end
+
+    header = trimString(header)
+    local idxToken, levelToken
+    local quoteChar = nil
+    local escape = false
+    local tokenStart = 1
+    local tokenCount = 0
+
+    for i = 1, #header do
+        local ch = header:sub(i, i)
+        if escape then
+            escape = false
+        elseif quoteChar then
+            if ch == "\\" then
+                escape = true
+            elseif ch == quoteChar then
+                quoteChar = nil
+            end
+        elseif ch == '"' or ch == "'" then
+            quoteChar = ch
+        elseif ch == "," then
+            tokenCount = tokenCount + 1
+            local token = trimString(header:sub(tokenStart, i - 1))
+            if tokenCount == 1 then
+                idxToken = token
+            elseif tokenCount == 2 then
+                levelToken = token
+                break
+            end
+            tokenStart = i + 1
+        end
+    end
+
+    if tokenCount == 1 then
+        levelToken = trimString(header:sub(tokenStart))
+    end
+
+    if not idxToken then
+        return nil, nil
+    end
+
+    idxToken = trimString(idxToken)
+    local idx = tonumber(idxToken)
+    return idx, levelToken
+end
+
 local function parseDiffLevel(diffMeta)
-    if type(diffMeta) ~= "string" then
+    local _, levelToken = parseDiffHeader(diffMeta)
+    if not levelToken or levelToken == "" then
         return nil
     end
-
-    -- diff(0,2,"title")縺ｮ2逡ｪ逶ｮ繧偵Ξ繝吶Ν縺ｨ縺励※隱ｭ縺ｿ蜿悶ｋ(5+縺ｪ縺ｩ繧よｮ九☆)
-    local levelToken = diffMeta:match("^[^,]+,%s*([^,]+)")
-    if not levelToken then
-        return nil
-    end
-
-    levelToken = levelToken:gsub("%s+", "")
-    if levelToken == "" then
-        return nil
-    end
-
     return levelToken
+end
+
+local function extractSflDiffBlocks(data)
+    local blocks = {}
+    if type(data) ~= "string" then
+        return blocks
+    end
+
+    local pos = 1
+    while true do
+        local startPos, openParen = data:find("diff%s*%(", pos)
+        if not startPos then
+            break
+        end
+
+        local headerStart = openParen + 1
+        local i = headerStart
+        local quoteChar = nil
+        local headerEnd
+        while i <= #data do
+            local ch = data:sub(i, i)
+            if quoteChar then
+                if ch == "\\" then
+                    i = i + 1
+                elseif ch == quoteChar then
+                    quoteChar = nil
+                end
+            else
+                if ch == '"' or ch == "'" then
+                    quoteChar = ch
+                elseif ch == ")" then
+                    headerEnd = i
+                    break
+                end
+            end
+            i = i + 1
+        end
+        if not headerEnd then
+            break
+        end
+
+        local header = data:sub(headerStart, headerEnd - 1)
+        local bodyStart = headerEnd + 1
+        local braceStart = data:find("{", bodyStart)
+        if not braceStart then
+            break
+        end
+
+        local depth = 0
+        local bodyEnd
+        quoteChar = nil
+        i = braceStart
+        while i <= #data do
+            local ch = data:sub(i, i)
+            if quoteChar then
+                if ch == "\\" then
+                    i = i + 1
+                elseif ch == quoteChar then
+                    quoteChar = nil
+                end
+            else
+                if ch == '"' or ch == "'" then
+                    quoteChar = ch
+                elseif ch == "{" then
+                    depth = depth + 1
+                elseif ch == "}" then
+                    depth = depth - 1
+                    if depth == 0 then
+                        bodyEnd = i
+                        break
+                    end
+                end
+            end
+            i = i + 1
+        end
+        if not bodyEnd then
+            break
+        end
+
+        local body = data:sub(braceStart + 1, bodyEnd - 1)
+        table.insert(blocks, {header = trimString(header), body = trimString(body)})
+        pos = bodyEnd + 1
+    end
+
+    return blocks
 end
 
 local notedata = {
@@ -452,6 +580,10 @@ local function getDiffTagFromIndex(idx, zeroBased)
     return nil
 end
 
+local function isMeaningfulDiffBody(body)
+    return type(body) == "string" and body:match("%S") ~= nil
+end
+
 local function parseSflDiffs(data)
     local textDiff = {easy=nil, normal=nil, hard=nil, extra=nil, custom=nil}
     local levelDiff = {easy=nil, normal=nil, hard=nil, extra=nil, custom=nil}
@@ -461,16 +593,16 @@ local function parseSflDiffs(data)
 
     -- Build index detection from actual diff blocks first.
     local indices = {}
-    for wrappedHeader in data:gmatch("diff%s*(%b())%s*%b{}") do
-        local header = wrappedHeader:sub(2, -2)
-        local idxNum = tonumber(header:match("^%s*([0-9%-]+)"))
+    local blocks = extractSflDiffBlocks(data)
+    for _, blockInfo in ipairs(blocks) do
+        local idxNum = parseDiffHeader(blockInfo.header)
         if idxNum then
             table.insert(indices, idxNum)
         end
     end
     if #indices == 0 then
         -- Fallback for malformed blocks that still have diff metadata.
-        for idx in string.gmatch(data, 'diff%s*%(%s*([0-9%-]+)%s*,%s*([0-9%.]+)') do
+        for idx, _ in string.gmatch(data, 'diff%s*%(%s*([0-9]+)%s*,%s*([0-9%.]+)') do
             local idxNum = tonumber(idx)
             if idxNum then
                 table.insert(indices, idxNum)
@@ -495,22 +627,28 @@ local function parseSflDiffs(data)
 
     -- Extract both level and the actual diff text block.
     local count = 0
-    for wrappedHeader, block in data:gmatch("diff%s*(%b())%s*(%b{})") do
-        local header = wrappedHeader:sub(2, -2)
-        local idxNum = tonumber(header:match("^%s*([0-9%-]+)"))
+    for _, blockInfo in ipairs(blocks) do
+        local idxNum, levelToken = parseDiffHeader(blockInfo.header)
         local tag = getDiffTagFromIndex(idxNum, zeroBased)
         if tag then
-            local level = parseDiffLevel(header)
-            if level then
-                levelDiff[tag] = level
+            if levelToken then
+                levelDiff[tag] = levelToken
+            else
+                local fallbackLevel = parseDiffLevel(blockInfo.header)
+                if fallbackLevel then
+                    levelDiff[tag] = fallbackLevel
+                end
             end
 
-            local body = block:sub(2, -2)
-            body = body:gsub("^%s+", ""):gsub("%s+$", "")
-            textDiff[tag] = body
-
-            count = count + 1
-            log.trace("  parseSflDiffs: idx=" .. tostring(idxNum) .. " -> tag=" .. tag .. " -> level=" .. tostring(levelDiff[tag]))
+            if isMeaningfulDiffBody(blockInfo.body) then
+                textDiff[tag] = blockInfo.body
+                count = count + 1
+                log.trace("  parseSflDiffs: idx=" .. tostring(idxNum) .. " -> tag=" .. tag .. " -> level=" .. tostring(levelDiff[tag]))
+            else
+                textDiff[tag] = nil
+                levelDiff[tag] = nil
+                log.trace("  parseSflDiffs: idx=" .. tostring(idxNum) .. " -> tag=" .. tag .. " -> empty body ignored")
+            end
         else
             log.trace("  parseSflDiffs: idx=" .. tostring(idxNum) .. " -> no tag found")
         end
@@ -649,6 +787,7 @@ local function buildDirectCollectionsFromSongs()
 
     local foldnames = localScratchsfl.foldname or {}
     sflpath = localScratchsfl.path or {}
+    local basePaths = localScratchsfl.basePath or {}
 
     local loadedCollections = {
         audio = {},
@@ -660,13 +799,28 @@ local function buildDirectCollectionsFromSongs()
 
     for i = 1, #foldnames do
         local foldName = foldnames[i]
-        local songfolder = "lib/data/Songs/" .. foldName
+        local basePath = basePaths[i] or "lib/data/Songs"
+        local songfolder = basePath .. "/" .. foldName
         local archiveKey = "song:" .. tostring(foldName or i)
 
         resetSingleSongAnalysisState()
 
         local ok, err = pcall(function()
             analyze_single_song(i)
+
+            local hasParsedDiffBlock = false
+            for _, diff in ipairs(diffs) do
+                if sfldiff[i] and sfldiff[i][diff] ~= nil then
+                    hasParsedDiffBlock = true
+                    break
+                end
+            end
+
+            if not hasParsedDiffBlock then
+                log.info("  direct load: skipping song with no parsed difficulty blocks: " .. tostring(foldName))
+                return
+            end
+
             local chartTable = createchartbin(i)
             local chartData = "return " .. basicSerialize(chartTable)
 
@@ -684,7 +838,8 @@ local function buildDirectCollectionsFromSongs()
                 end
                 loadedCollections.audio[#loadedCollections.audio + 1] = {
                     name = musicpath,
-                    archive = archiveKey
+                    archive = archiveKey,
+                    sourcePath = musicpath
                 }
             else
                 log.warn("  direct load: music file not found in " .. tostring(songfolder) .. " (meta=" .. tostring(musicName) .. ")")
@@ -694,7 +849,8 @@ local function buildDirectCollectionsFromSongs()
             if jacketPath then
                 loadedCollections.images[#loadedCollections.images + 1] = {
                     name = jacketPath,
-                    archive = archiveKey
+                    archive = archiveKey,
+                    sourcePath = jacketPath
                 }
             end
         end)

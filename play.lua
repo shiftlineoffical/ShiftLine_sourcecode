@@ -3436,6 +3436,14 @@ function play.draw()
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.print(count, displayx / 2 - safeFont:getWidth(countText) / 2, displayy / 2 - safeFont:getHeight() / 2)
     end
+
+    -- FPS表示
+    if settingsdata and settingsdata.playsettings and settingsdata.playsettings.showfps then
+        love.graphics.setFont(font)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        local fps = love.timer.getFPS()
+        love.graphics.print("FPS: " .. math.floor(fps), 8, 8)
+    end
 end
 
 

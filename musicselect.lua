@@ -328,6 +328,31 @@ local function setSelectedDifficulty(diff)
     end
 end
 
+-- 指定インデックスに対して現在の selectedDifficulty が有効か検査し、無効なら
+-- 最初に見つかる有効な難易度へ切替して selectedLevelValue を設定する。
+local function ensureSelectedDifficultyValidForIndex(idx)
+    idx = tonumber(idx) or musicselect.selectedIndex
+    if not idx or idx <= 0 then return end
+    local chartdata = chartreader()
+    local levelInfo = (chartdata.level and chartdata.level[idx]) or {}
+    local curVal = (levelInfo and levelInfo[musicselect.selectedDifficulty]) or nil
+    if curVal and curVal ~= "" then
+        musicselect.selectedLevelValue = curVal
+        return
+    end
+    for _, diff in ipairs(difficultyOrder) do
+        local v = levelInfo and levelInfo[diff]
+        if v and v ~= "" then
+            setSelectedDifficulty(diff)
+            musicselect.selectedLevelValue = v
+            log.debug("ensureSelectedDifficultyValidForIndex: switched to " .. tostring(diff) .. " for index " .. tostring(idx))
+            return
+        end
+    end
+    musicselect.selectedLevelValue = "--"
+    log.debug("ensureSelectedDifficultyValidForIndex: no valid difficulty for index " .. tostring(idx))
+end
+
 local function getDifficultyZonePolygons()
     if difficultyZonesCache
         and difficultyZonesCacheWidth == displayWidth
@@ -624,6 +649,7 @@ buildImageObject = function(entry)
                 local ok3, imgObj = pcall(love.graphics.newImage, imgdata)
                 if ok3 and imgObj then
                     img = imgObj
+                    log.debug("buildImageObject: loaded image from data name=" .. tostring(entry.name))
                 else
                     log.warn("Warning: failed to create Image object for " .. tostring(entry.name))
                 end
@@ -634,18 +660,133 @@ buildImageObject = function(entry)
             log.warn("Warning: failed to create FileData for " .. tostring(entry and entry.name))
         end
     elseif type(entry) == "table" and type(entry.name) == "string" then
-        local ok, imgObj = pcall(love.graphics.newImage, entry.name)
-        if ok and imgObj then
-            img = imgObj
+        local imagePath = entry.name
+        local fileContent = nil
+
+        local function path_to_save_relative(p)
+            if not (love and love.filesystem and love.filesystem.getSaveDirectory) then
+                return nil
+            end
+            local ok, saveDir = pcall(love.filesystem.getSaveDirectory)
+            if not ok or type(saveDir) ~= "string" then return nil end
+            local normSave = saveDir:gsub("\\","/")
+            local normPath = p:gsub("\\","/")
+            if normPath:sub(1, #normSave) == normSave then
+                local rel = normPath:sub(#normSave + 1)
+                rel = rel:gsub("^[/\\]+", "")
+                if rel == "" then rel = "." end
+                return rel
+            end
+            return nil
+        end
+
+        local rel = path_to_save_relative(imagePath)
+        if rel and love and love.filesystem and love.filesystem.read then
+            local okRead, contents = pcall(love.filesystem.read, rel)
+            if okRead and contents then fileContent = contents end
+        end
+
+        if not fileContent then
+            -- 絶対パス（AppData など）の場合、io.open を使用してファイルを読み込む
+            if imagePath:match("^[A-Za-z]:") or imagePath:match("^/") then
+                local f = io.open(imagePath, "rb")
+                if f then
+                    fileContent = f:read("*a")
+                    f:close()
+                end
+            end
+        end
+
+        if fileContent then
+            local fileName = imagePath:match("([^/\\]+)$") or "image"
+            local ok, filedata = pcall(love.filesystem.newFileData, fileContent, fileName)
+            if ok and filedata then
+                local ok2, imgdata = pcall(love.image.newImageData, filedata)
+                if ok2 and imgdata then
+                    local ok3, imgObj = pcall(love.graphics.newImage, imgdata)
+                    if ok3 and imgObj then
+                        img = imgObj
+                        log.debug("buildImageObject: loaded image from path " .. tostring(imagePath))
+                    else
+                        log.warn("Warning: failed to create Image object from path " .. tostring(imagePath))
+                    end
+                else
+                    log.warn("Warning: failed to create ImageData from path " .. tostring(imagePath))
+                end
+            else
+                log.warn("Warning: failed to create FileData from path " .. tostring(imagePath))
+            end
         else
-            log.warn("Warning: failed to load Image by name " .. tostring(entry.name))
+            local ok, imgObj = pcall(love.graphics.newImage, imagePath)
+            if ok and imgObj then
+                img = imgObj
+            else
+                log.warn("Warning: failed to load Image by name " .. tostring(imagePath))
+            end
         end
     elseif type(entry) == "string" then
-        local ok, imgObj = pcall(love.graphics.newImage, entry)
-        if ok and imgObj then
-            img = imgObj
+        -- 絶対パス（AppData など）の場合、io.open を使用してファイルを読み込む
+        local fileContent = nil
+
+        local function path_to_save_relative(p)
+            if not (love and love.filesystem and love.filesystem.getSaveDirectory) then
+                return nil
+            end
+            local ok, saveDir = pcall(love.filesystem.getSaveDirectory)
+            if not ok or type(saveDir) ~= "string" then return nil end
+            local normSave = saveDir:gsub("\\","/")
+            local normPath = p:gsub("\\","/")
+            if normPath:sub(1, #normSave) == normSave then
+                local rel = normPath:sub(#normSave + 1)
+                rel = rel:gsub("^[/\\]+", "")
+                if rel == "" then rel = "." end
+                return rel
+            end
+            return nil
+        end
+
+        local rel = path_to_save_relative(entry)
+        if rel and love and love.filesystem and love.filesystem.read then
+            local okRead, contents = pcall(love.filesystem.read, rel)
+            if okRead and contents then fileContent = contents end
+        end
+
+        if not fileContent then
+            if entry:match("^[A-Za-z]:") or entry:match("^/") then
+                local f = io.open(entry, "rb")
+                if f then
+                    fileContent = f:read("*a")
+                    f:close()
+                end
+            end
+        end
+
+        if fileContent then
+            local fileName = entry:match("([^/\\]+)$") or "image"
+            local ok, filedata = pcall(love.filesystem.newFileData, fileContent, fileName)
+            if ok and filedata then
+                local ok2, imgdata = pcall(love.image.newImageData, filedata)
+                if ok2 and imgdata then
+                    local ok3, imgObj = pcall(love.graphics.newImage, imgdata)
+                    if ok3 and imgObj then
+                        img = imgObj
+                        log.debug("buildImageObject: loaded image from entry string " .. tostring(entry))
+                    else
+                        log.warn("Warning: failed to create Image object from path " .. tostring(entry))
+                    end
+                else
+                    log.warn("Warning: failed to create ImageData from path " .. tostring(entry))
+                end
+            else
+                log.warn("Warning: failed to create FileData from path " .. tostring(entry))
+            end
         else
-            log.warn("Warning: failed to load Image by path " .. tostring(entry))
+            local ok, imgObj = pcall(love.graphics.newImage, entry)
+            if ok and imgObj then
+                img = imgObj
+            else
+                log.warn("Warning: failed to load Image by path " .. tostring(entry))
+            end
         end
     end
 
@@ -912,41 +1053,15 @@ local function applySelectedGenreFilter()
         local watchuser = normalizeWatchusers(allChartDataCache and allChartDataCache.watchuser and allChartDataCache.watchuser[i] or {})
         local restrictedByWatchuser = false
 
+        -- watchuser制限がある楽曲は常に表示から除外
         if #watchuser > 0 then
-            local currentUsers = {}
-            if gamejolt and gamejolt.status and gamejolt.status.authenticated then
-                local userId = normalizeWatchuserName(gamejolt.status.userId or "")
-                local userName = normalizeWatchuserName(gamejolt.status.username or "")
-                if userId ~= "" then
-                    currentUsers[#currentUsers + 1] = userId:lower()
-                end
-                if userName ~= "" and userName:lower() ~= userId:lower() then
-                    currentUsers[#currentUsers + 1] = userName:lower()
-                end
-            end
-            if #currentUsers == 0 then
-                restrictedByWatchuser = true
-            else
-                local found = false
-                for _, u in ipairs(watchuser) do
-                    local normalized = normalizeWatchuserName(u):lower()
-                    for _, current in ipairs(currentUsers) do
-                        if normalized == current then
-                            found = true
-                            break
-                        end
-                    end
-                    if found then
-                        break
-                    end
-                end
-                if not found then
-                    restrictedByWatchuser = true
-                end
-            end
+            restrictedByWatchuser = true
         end
 
-        if chartHasGenre(genres, selectedGenre) and not restrictedByWatchuser then
+        -- 解析された難易度ブロックがあれば表示対象にする
+        local hasAnyDifficulty = true
+
+        if chartHasGenre(genres, selectedGenre) and not restrictedByWatchuser and hasAnyDifficulty then
             filteredCount = filteredCount + 1
             filteredChartfiles[filteredCount] = chartEntry
         end
@@ -1624,9 +1739,18 @@ function musicselect.update(dt)
         end
     end
 
-    -- レベル選択用データ更新
+    -- レベル選択用データ更新: 実際のレベル値を反映する（存在しない場合は "--" を表示）
     local chartdata = chartreader()
-    musicselect.selectedLevelValue = musicselect.selectedDifficulty
+    do
+        local idx = index
+        local levelInfo = (chartdata.level and chartdata.level[idx]) or {}
+        local v = levelInfo and levelInfo[musicselect.selectedDifficulty]
+        if v and v ~= "" then
+            musicselect.selectedLevelValue = v
+        else
+            musicselect.selectedLevelValue = "--"
+        end
+    end
 
     -- タイトル名スクロール制御
     local title = (chartdata.name and chartdata.name[index]) or ""
@@ -1741,8 +1865,49 @@ function musicselect.mousepressed(x, y, button)
 
     for _, rect in ipairs(musicselect.cardBounds) do
         if x >= rect.x and x <= rect.x + rect.w and y >= rect.y and y <= rect.y + rect.h then
+            log.debug("mousepressed: clicked rect index=" .. tostring(rect.index) .. ", selLevelValue=" .. tostring(musicselect.selectedLevelValue) .. ", selDifficulty=" .. tostring(musicselect.selectedDifficulty))
             musicselect.selectedIndex = rect.index
             syncCardTopIndex(getSelectableCount())
+
+            -- クリックした楽曲に対して、現在の選択難易度が存在しない場合は
+            -- 強制的に最初に見つかる有効な難易度へ切替える（確実に即時反映させる）
+            do
+                local chartdata = chartreader()
+                local levelInfo = (chartdata.level and chartdata.level[musicselect.selectedIndex]) or {}
+                -- 詳細ログ: index と levelInfo の内容を出力
+                local infoParts = {}
+                for _, d in ipairs(difficultyOrder) do
+                    local vv = levelInfo and levelInfo[d] or nil
+                    infoParts[#infoParts+1] = d .. '=' .. tostring(vv)
+                end
+                log.debug("mousepressed: levelInfo for index=" .. tostring(musicselect.selectedIndex) .. " -> " .. table.concat(infoParts, ", "))
+
+                -- 優先方針: まず現在の selectedDifficulty が当該曲で有効か確認。無効なら最初に見つかる有効な難易度へ切替。
+                local curVal = (levelInfo and levelInfo[musicselect.selectedDifficulty]) or nil
+                if not (curVal and curVal ~= "") then
+                    for _, diff in ipairs(difficultyOrder) do
+                        local v = levelInfo and levelInfo[diff]
+                        if v and v ~= "" then
+                            local before = musicselect.selectedDifficulty
+                            setSelectedDifficulty(diff)
+                            musicselect.selectedLevelValue = v
+                            log.debug("mousepressed: forced auto-switch difficulty from " .. tostring(before) .. " to " .. tostring(diff) .. " for index " .. tostring(musicselect.selectedIndex))
+                            break
+                        end
+                    end
+                else
+                    -- 現在の選択難易度が有効なら表示を実際の値で更新
+                    musicselect.selectedLevelValue = curVal
+                    log.debug("mousepressed: kept selected difficulty " .. tostring(musicselect.selectedDifficulty) .. " with value " .. tostring(curVal) .. " for index " .. tostring(musicselect.selectedIndex))
+                end
+
+                -- 有効な難易度が見つからなかった場合は -- を表示する
+                if not musicselect.selectedLevelValue or musicselect.selectedLevelValue == "" then
+                    musicselect.selectedLevelValue = "--"
+                    log.debug("mousepressed: no valid difficulty found for index=" .. tostring(musicselect.selectedIndex))
+                end
+            end
+
             return
         end
     end
@@ -1765,9 +1930,25 @@ function musicselect.mousepressed(x, y, button)
     for _, diff in ipairs(difficultyOrder) do
         local points = difficultyZones[diff]
         if points and pointInConvexPolygon(x, y, points) then
-            setSelectedDifficulty(diff)
-            musicselect.selectedLevelValue = diff
-            return
+            -- クリックされた難易度が現在の選択曲に存在するか確認する
+            local chartdata = chartreader()
+            local levelInfo = (chartdata.level and chartdata.level[musicselect.selectedIndex]) or {}
+            if levelValueExists(levelInfo, diff) then
+                setSelectedDifficulty(diff)
+                musicselect.selectedLevelValue = (levelInfo and levelInfo[diff]) or diff
+                return
+            else
+                -- 存在しない難易度は無視せず、代わりに最初に見つかる有効な難易度へ切替する
+                for _, nd in ipairs(difficultyOrder) do
+                    if levelValueExists(levelInfo, nd) then
+                        setSelectedDifficulty(nd)
+                        musicselect.selectedLevelValue = (levelInfo and levelInfo[nd]) or nd
+                        log.debug("mousepressed: requested difficulty " .. tostring(diff) .. " not present; switched to " .. tostring(nd) .. " for index " .. tostring(musicselect.selectedIndex))
+                        break
+                    end
+                end
+                return
+            end
         end
     end
 
@@ -1806,6 +1987,7 @@ function musicselect.wheelmoved(x, y)
     nextIndex = clamp(nextIndex + delta, 1, count)
     musicselect.selectedIndex = nextIndex
     syncCardTopIndex(count)
+    ensureSelectedDifficultyValidForIndex(musicselect.selectedIndex)
 end
 
 
@@ -1828,21 +2010,27 @@ function musiccard()
     musicselect.selectedIndex = selectedIndex
     syncCardTopIndex(itemCount)
 
-    -- ジャンルボタン描画
+    -- ジャンルボタン描画（テキストを矩形内で垂直中央に揃える）
     for i, g in ipairs(genreListCache) do
         local x = 10
         local y = 100 + (i-1)*50
+        local btnW, btnH = 120, 40
         if selectedGenre == g then
             love.graphics.setColor(0.2, 0.6, 1, 0.5)
-            love.graphics.rectangle("fill", x, y, 120, 40)
+            love.graphics.rectangle("fill", x, y, btnW, btnH)
         end
+
         if selectedGenre == g then
             love.graphics.setColor(1, 1, 1)
         else
             love.graphics.setColor(0.5, 0.5, 0.5)
         end
+
         love.graphics.setFont(artistfont)
-        love.graphics.print(g, x+10, y+10)
+        local fh = (artistfont and artistfont:getHeight()) or 16
+        local textX = x + 10
+        local textY = y + math.floor((btnH - fh) / 2)
+        love.graphics.print(g, textX, textY)
     end
 
 
@@ -1872,16 +2060,21 @@ function musiccard()
                 local scale = (displayHeight / 10) / h
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.draw(jacket, cardX, cardY, 0, scale, scale)
-
                 local titleText = chartdata.name[i] or ""
-                local titleX = displayWidth/10*1.5+jacket:getWidth()*scale
-                local titleY = cardY
+                local artistText = chartdata.artist[i] or ""
+                local titleFH = titlefont and titlefont:getHeight() or 20
+                local artistFH = artistfont and artistfont:getHeight() or 16
+                local innerPad = 6
+                local totalTextH = titleFH + artistFH + innerPad
+                local contentStartY = cardY + math.floor((cardH - totalTextH) / 2)
+
+                local titleX = displayWidth/10*1.5 + jacket:getWidth() * scale
+                local titleY = contentStartY
                 local titleAreaW = (cardX + cardW) - titleX - 10
                 drawCardSingleLineText(titlefont, titleText, titleX, titleY, titleAreaW)
 
-                local artistText = chartdata.artist[i] or ""
-                local artistX = displayWidth/10*2+jacket:getWidth()*scale
-                local artistY = cardY + 50
+                local artistX = displayWidth/10*2 + jacket:getWidth() * scale
+                local artistY = contentStartY + titleFH + innerPad
                 local artistAreaW = (displayWidth/2 - artistX - 10)
                 drawCardSingleLineText(artistfont, artistText, artistX, artistY, artistAreaW)
             end
@@ -1890,8 +2083,15 @@ function musiccard()
             love.graphics.setColor(0.25, 0.25, 0.25)
             love.graphics.rectangle("fill", cardX, cardY, cardW, cardH)
             love.graphics.setColor(1, 1, 1)
-            drawCardSingleLineText(titlefont, chartdata.name[i] or "Unknown", cardX + 10, cardY + 10, cardW - 20)
-            drawCardSingleLineText(artistfont, chartdata.artist[i] or "Unknown", cardX + 10, cardY + 50, cardW - 20)
+            local titleText = chartdata.name[i] or "Unknown"
+            local artistText = chartdata.artist[i] or "Unknown"
+            local titleFH = titlefont and titlefont:getHeight() or 20
+            local artistFH = artistfont and artistfont:getHeight() or 16
+            local innerPad = 6
+            local totalTextH = titleFH + artistFH + innerPad
+            local contentStartY = cardY + math.floor((cardH - totalTextH) / 2)
+            drawCardSingleLineText(titlefont, titleText, cardX + 10, contentStartY, cardW - 20)
+            drawCardSingleLineText(artistfont, artistText, cardX + 10, contentStartY + titleFH + innerPad, cardW - 20)
             love.graphics.setColor(1, 1, 0.7)
             love.graphics.setFont(artistfont)
             love.graphics.printf("No Jacket", cardX, cardY + cardH / 2 - artistfont:getHeight() / 2, cardW, "center")
@@ -2083,6 +2283,7 @@ local function createEmptyChartMeta(chartEntry)
         url = "",
         level = createEmptyLevel(),
         genre = {"Unknown"},
+        watchuser = {},
         file = fileName
     }
 end
@@ -2393,6 +2594,17 @@ function chartreader()
                  (musiclevel[i].custom or "-") .. "]")
     end
 
+    local musicwatchuser = {}
+    for i = 1, #chartfiles do
+        local chartEntry = chartfiles[i]
+        local parsed = chartMetaCache[getChartMetaCacheKey(chartEntry)]
+        if parsed and parsed.watchuser then
+            musicwatchuser[i] = parsed.watchuser
+        else
+            musicwatchuser[i] = {}
+        end
+    end
+
     cachedChartData = {
         name = musicName,
         artist = musicartist,
@@ -2403,7 +2615,8 @@ function chartreader()
         demoend = demoend,
         file = musicfilesList,
         level = musiclevel,
-        genre = musicgenre
+        genre = musicgenre,
+        watchuser = musicwatchuser
     }
     
     log.info("chartreader: Successfully loaded " .. #musicName .. " chart(s)")
@@ -2528,6 +2741,7 @@ function musicselect.keypressed(key)
         if count > 0 then
             musicselect.selectedIndex = clamp((musicselect.selectedIndex or 1) - 1, 1, count)
             syncCardTopIndex(count)
+            ensureSelectedDifficultyValidForIndex(musicselect.selectedIndex)
         end
     end
 
@@ -2536,6 +2750,7 @@ function musicselect.keypressed(key)
         if count > 0 then
             musicselect.selectedIndex = clamp((musicselect.selectedIndex or 1) + 1, 1, count)
             syncCardTopIndex(count)
+            ensureSelectedDifficultyValidForIndex(musicselect.selectedIndex)
         end
     end
 
@@ -2562,10 +2777,12 @@ function musicselect.keypressed(key)
 
         if foundDiff then
             setSelectedDifficulty(foundDiff)
-            musicselect.selectedLevelValue = foundDiff
+            local value = (levelInfo and levelInfo[foundDiff]) or "--"
+            musicselect.selectedLevelValue = (value ~= "" and value) or "--"
         else
             -- どの難易度も譜面なしなら現在のままを維持（とりあえず fallback）
-            musicselect.selectedLevelValue = musicselect.selectedDifficulty
+            local curVal = (levelInfo and levelInfo[musicselect.selectedDifficulty]) or "--"
+            musicselect.selectedLevelValue = (curVal ~= "" and curVal) or "--"
         end
     end
 
@@ -2585,6 +2802,66 @@ function musicselect.keypressed(key)
         end
         return
     end
+end
+
+function musicselect.getAllWatchusers()
+    chartreader()
+
+    if not allChartfilesCache or not allChartDataCache then
+        return {}
+    end
+
+    local result = {}
+    local count = 0
+    for i = 1, #allChartfilesCache do
+        local watchusers = normalizeWatchusers(allChartDataCache.watchuser and allChartDataCache.watchuser[i] or {})
+        if #watchusers > 0 then
+            count = count + 1
+            result[count] = {
+                index = i,
+                title = allChartDataCache.name and allChartDataCache.name[i] or "Unknown",
+                artist = allChartDataCache.artist and allChartDataCache.artist[i] or "Unknown",
+                watchusers = watchusers,
+                chartEntry = allChartfilesCache[i]
+            }
+        end
+    end
+
+    return result
+end
+
+function musicselect.getWatchuserSongs(searchName)
+    if type(searchName) ~= "string" then
+        searchName = ""
+    end
+    
+    searchName = searchName:lower()
+    
+    -- getAllWatchusers() ですべての watchuser 制限楽曲を取得
+    local allWatched = musicselect.getAllWatchusers()
+    
+    if searchName == "" then
+        -- 引数なし：すべての watchuser 楽曲を返す
+        return allWatched
+    end
+    
+    -- 特定ユーザーで検索
+    local results = {}
+    for _, song in ipairs(allWatched) do
+        local hasMatch = false
+        for _, user in ipairs(song.watchusers) do
+            if user:lower():find(searchName, 1, true) then
+                hasMatch = true
+                break
+            end
+        end
+        
+        if hasMatch then
+            table.insert(results, song)
+        end
+    end
+    
+    return results
 end
 
 return musicselect

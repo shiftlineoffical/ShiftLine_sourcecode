@@ -99,6 +99,10 @@ local function getInstallDir()
 end
 
 local function fileExists(path)
+    if love and love.filesystem and love.filesystem.getInfo then
+        local ok, info = pcall(love.filesystem.getInfo, path)
+        if ok and info then return true end
+    end
     local f = io.open(path, "rb")
     if f then
         f:close()

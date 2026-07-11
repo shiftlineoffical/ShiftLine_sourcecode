@@ -45,7 +45,7 @@ local settingFields = {
     {"displaySize", "displayMode", "vsync"},
     {"masterVolume", "musicVolume", "sfxVolume"},
     {"language", "timeout", "defaultLevel"},
-    {"moveSpeed", "timing", "playLogSave"},
+    {"moveSpeed", "timing", "playLogSave", "showFPS"},
     {"website", "gamepage", "twitter"},
     {"moveup", "movedown", "moveleft", "moveright", "leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree", "pause"}
 }
@@ -60,43 +60,44 @@ local displayResolutions = {
 
 local localeTexts = {
     jp = {
-        title = "險ｭ螳・",
-        categories = {"繝・ぅ繧ｹ繝励Ξ繧､", "繧ｪ繝ｼ繝・ぅ繧ｪ", "縺昴・莉・", "繝励Ξ繧､險ｭ螳・", "繝ｪ繝ｳ繧ｯ", "繧ｭ繝ｼ險ｭ螳・"},
-        displaySize = "隗｣蜒丞ｺｦ",
-        displayMode = "陦ｨ遉ｺ繝｢繝ｼ繝・",
-        vsync = "VSync",
-        fullscreen = "繝輔Ν繧ｹ繧ｯ繝ｪ繝ｼ繝ｳ",
-        windowed = "繧ｦ繧｣繝ｳ繝峨え",
-        masterVolume = "繝槭せ繧ｿ繝ｼ繝懊Μ繝･繝ｼ繝",
-        musicVolume = "BGM繝懊Μ繝･繝ｼ繝",
-        sfxVolume = "蜉ｹ譫憺浹繝懊Μ繝･繝ｼ繝",
-        language = "險隱・",
-        timeout = "繧ｿ繧､繝繧｢繧ｦ繝・",
-        defaultLevel = "繝・ヵ繧ｩ繝ｫ繝医Ξ繝吶Ν",
-        moveSpeed = "遘ｻ蜍暮溷ｺｦ",
-        timing = "繧ｿ繧､繝溘Φ繧ｰ",
-        playLogSave = "繝励Ξ繧､繝ｭ繧ｰ菫晏ｭ・",
-        website = "繧ｵ繧､繝・",
-        gamepage = "繧ｲ繝ｼ繝繝壹・繧ｸ",
-        twitter = "Twitter",
-        moveup = "荳顔ｧｻ蜍・",
-        movedown = "荳狗ｧｻ蜍・",
-        moveleft = "蟾ｦ遘ｻ蜍・",
-        moveright = "蜿ｳ遘ｻ蜍・",
-        leftone = "蟾ｦ1",
-        lefttwo = "蟾ｦ2",
-        lefttree = "蟾ｦ3",
-        rightone = "蜿ｳ1",
-        righttwo = "蜿ｳ2",
-        righttree = "蜿ｳ3",
-        pause = "荳譎ょ●豁｢",
-        helpText = "繧ｯ繝ｪ繝・け/荳贋ｸ・蟾ｦ蜿ｳ縺ｧ驕ｸ謚槭√・繧､繝ｼ繝ｫ縺ｧ螟画峩縲・nter/繧ｯ繝ｪ繝・け縺ｧ菫晏ｭ・",
-        openLinkHelp = "繧ｯ繝ｪ繝・け縺ｧ繝ｪ繝ｳ繧ｯ繧帝幕縺・",
-        keyConfigHelp = "Enter縺ｧ繧ｭ繝ｼ險ｭ螳壹√く繝ｼ繧呈款縺励※菫晏ｭ・",
-        booleanOn = "繧ｪ繝ｳ",
-        booleanOff = "繧ｪ繝・",
-        languageName = {jp = "譌･譛ｬ隱・", en = "English"},
-        levelName = {easy = "繧､繝ｼ繧ｸ繝ｼ", normal = "繝弱・繝槭Ν", hard = "繝上・繝・", extra = "繧ｨ繧ｯ繧ｹ繝医Λ"}
+        title = "設定",
+        categories = {"画面設定", "音声設定", "情報設定", "プレイ設定", "サイトリンク", "キーコンフィグ"},
+        displaySize = "画面サイズ",
+        displayMode = "画面モード",
+        vsync = "垂直同期",
+        fullscreen = "フルスクリーン",
+        windowed = "ウィンドウ",
+        masterVolume = "全体音量",
+        musicVolume = "BGM音量",
+        sfxVolume = "SFX音量",
+        language = "言語",
+        timeout = "タイムアウト",
+        defaultLevel = "デフォルトレベル",
+        moveSpeed = "移動速度",
+        timing = "タイミング",
+        playLogSave = "ログ設定",
+        showFPS = "FPS表示",
+        website = "ウェブサイト",
+        gamepage = "ダウンロードサイト",
+        twitter = "X(Twitter)",
+        moveup = "レーン・上",
+        movedown = "レーン・下",
+        moveleft = "レーン・左",
+        moveright = "レーン・右",
+        leftone = "左1",
+        lefttwo = "左2",
+        lefttree = "左3",
+        rightone = "右1",
+        righttwo = "右2",
+        righttree = "右3",
+        pause = "一時停止",
+        helpText = "選択: Enter/上下/左右, 調整: ホイール, 保存: Enter/クリック",
+        openLinkHelp = "リンクを開く",
+        keyConfigHelp = "Enterを押してからキーを押す",
+        booleanOn = "ON",
+        booleanOff = "OFF",
+        languageName = {jp = "日本語", en = "English"},
+        levelName = {easy = "easy", normal = "normal", hard = "hard", extra = "extra"}
     },
     en = {
         title = "Settings",
@@ -115,6 +116,7 @@ local localeTexts = {
         moveSpeed = "Move Speed",
         timing = "Timing",
         playLogSave = "Play Log Save",
+        showFPS = "Show FPS",
         website = "Website",
         gamepage = "Gamepage",
         twitter = "Twitter",
@@ -134,7 +136,7 @@ local localeTexts = {
         keyConfigHelp = "Press Enter then press a key to assign",
         booleanOn = "On",
         booleanOff = "Off",
-        languageName = {jp = "譌･譛ｬ隱・", en = "English"},
+        languageName = {jp = "日本語", en = "English"},
         levelName = {easy = "Easy", normal = "Normal", hard = "Hard", extra = "Extra"}
     }
 }
@@ -253,6 +255,8 @@ local function getSettingValue(key)
         return tostring(settingsdata.playsettings.timing)
     elseif key == "playLogSave" then
         return getBooleanText(settingsdata.playsettings.playlogsave)
+    elseif key == "showFPS" then
+        return getBooleanText(settingsdata.playsettings.showfps)
     elseif key == "website" then
         return linkdata.shiftline
     elseif key == "gamepage" then
@@ -328,6 +332,8 @@ local function adjustCurrentSetting(amount)
             settingsdata.playsettings.timing = clamp(settingsdata.playsettings.timing + amount, -100, 100)
         elseif selectedFieldIndex == 3 then
             settingsdata.playsettings.playlogsave = not settingsdata.playsettings.playlogsave
+        elseif selectedFieldIndex == 4 then
+            settingsdata.playsettings.showfps = not settingsdata.playsettings.showfps
         end
     elseif selectedIndex == 6 then
         -- Key bindings are changed by pressing Enter and then selecting a new key.
@@ -380,7 +386,7 @@ settingsdata={
         movespead = 1.0,
         timing=0,
         playlogsave = true,
-
+        showfps = false,
     },
     stats={
         bestRating = 0,
@@ -405,6 +411,17 @@ function settings.applyDisplaySettings()
         })
         displayWidth, displayHeight = love.graphics.getDimensions()
     end
+    -- レイアウト・フォントを即時更新
+    updateLayout()
+    refreshFonts()
+
+    -- 他モジュールのフォント更新が可能なら呼び出す
+    pcall(function()
+        local ok, ms = pcall(require, "musicselect")
+        if ok and ms and type(ms.refreshMusicselectFonts) == "function" then
+            ms.refreshMusicselectFonts()
+        end
+    end)
 end
 
 function settings.applyAudioSettings()
@@ -482,8 +499,8 @@ local function adjustFieldAtPosition(x, y)
 
     local rx, ry, rw, rh = getFieldRowRect(index)
     local arrowWidth = math.min(48, rw * 0.1)
-    local leftArrowX = rx + rw - arrowWidth * 2 - 12
-    local rightArrowX = rx + rw - arrowWidth
+    local leftArrowX = rx + rw - arrowWidth * 2 - 22
+    local rightArrowX = rx + rw - arrowWidth - 14
 
     selectedFieldIndex = index
 
@@ -552,7 +569,7 @@ function settings.draw()
     love.graphics.polygon("line", statusPoly)
     love.graphics.setFont(font)
     love.graphics.setColor(1, 1, 1, 0.94)
-    love.graphics.print(getLocaleText("categories")[selectedIndex] .. " 繝ｻ " .. getCurrentFieldCount() .. " items", statusX + 20, statusY + 18)
+    love.graphics.print(getLocaleText("categories")[selectedIndex] .. "アイテム数: " .. getCurrentFieldCount() .. " items", statusX + 20, statusY + 18)
     love.graphics.setColor(1, 1, 1, 0.8)
     local statusHelp = selectedIndex == 6 and getLocaleText("keyConfigHelp") or getLocaleText("helpText")
     love.graphics.print(statusHelp, statusX + 20, statusY + 20 + Subtitlefont:getHeight())
@@ -561,7 +578,6 @@ function settings.draw()
     local maxFieldY = layout.panelY + layout.panelH - layout.padding
     local visibleItemCount = 0
     
-    -- 逕ｻ髱｢縺ｫ陦ｨ遉ｺ縺輔ｌ繧矩・岼謨ｰ繧偵き繧ｦ繝ｳ繝・
     for i, _ in ipairs(settingFields[selectedIndex]) do
         local rx, ry, rw, rh = getFieldRowRect(i)
         if ry + rh <= maxFieldY then
@@ -571,7 +587,6 @@ function settings.draw()
         end
     end
     
-    -- selectedFieldIndex縺檎判髱｢蜀・↓蜿弱∪繧九ｈ縺・↓蛻ｶ髯・
     if selectedFieldIndex > visibleItemCount then
         selectedFieldIndex = math.max(1, visibleItemCount)
     end
@@ -595,14 +610,14 @@ function settings.draw()
         love.graphics.print(getLocaleText(field), rx + 18, ry + rh * 0.18)
 
         local valueText = tostring(getSettingValue(field))
-        local maxValueW = rw * 0.42
+        local maxValueW = rw * 0.3
         local vScale = 1
         if font:getWidth(valueText) > maxValueW then
             vScale = maxValueW / font:getWidth(valueText)
         end
         love.graphics.setColor(1, 1, 1, 0.82)
         love.graphics.push()
-        love.graphics.translate(rx + rw - 18, ry + rh * 0.18)
+        love.graphics.translate(rx + rw - 140, ry + rh * 0.18)
         love.graphics.scale(vScale, vScale)
         love.graphics.printf(valueText, -font:getWidth(valueText), 0, font:getWidth(valueText), "left")
         love.graphics.pop()
@@ -672,7 +687,10 @@ end
 function settings.wheelmoved(x, y)
     local mx, my = love.mouse.getPosition()
     local index = getFieldIndexAtPosition(mx, my)
-    if not index or selectedIndex == 5 then
+    if not index then
+        return
+    end
+    if selectedIndex == 5 or selectedIndex == 6 then
         return
     end
     selectedFieldIndex = index
@@ -680,13 +698,10 @@ function settings.wheelmoved(x, y)
 end
 
 
---縺昴・莉夜未謨ｰ
 function settings.save()
 
-    -- Lua繝・・繝悶Ν to JSON譁・ｭ怜・
     local jsonText = JSON:encode_pretty(settingsdata)
 
-    -- 繝輔ぃ繧､繝ｫ縺ｸ菫晏ｭ・
     local success, message = love.filesystem.write("settings.json", jsonText)
 
     if success then
@@ -704,7 +719,6 @@ function settings.save()
     end
 end
 
---險ｭ螳夂判髱｢髢｢謨ｰ
 function settings.displaydraw()
     love.graphics.setFont(font)
     local y = displayHeight/5 - font:getHeight() * 1.5

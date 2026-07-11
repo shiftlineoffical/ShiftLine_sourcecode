@@ -2,8 +2,9 @@ meta("私という名の花を咲かせて",私という名の花を咲かせて
 artist("Suimii with 初音ミク")
 url("https://youtu.be/Py31bMw4BDU?si=KxmjEc0QVloAuVIQ")
 genre("Vocal")
-demostart()
-demoend()
+demostart(40.275)
+demoend(66.3)
+watchuser("cloudoamp","hamu132")
 
 diff(0,1.2,""){
 

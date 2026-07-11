@@ -41,6 +41,7 @@ local scratchsfl = {}
 scratchsfl.foldname={}
 scratchsfl.list={}
 scratchsfl.path={}
+scratchsfl.basePath={}  -- 各楽曲のベースパス（lib/data/SongsまたはAPPDATA/ShiftLine/Songs）
 
 local log = require("log")
 
@@ -87,14 +88,20 @@ function scratchsfl.load()
     end
 
     local basePaths = {"lib/data/Songs"}
-    local appdata = os.getenv("APPDATA") or os.getenv("HOME")
-    if appdata then
-        local appSongs = appdata .. "/ShiftLine/Songs"
-        basePaths[#basePaths+1] = appSongs
+    -- AppData（保存領域）はまず LÖVE のファイルシステム内の相対パスを優先して参照する
+    if love and love.filesystem and love.filesystem.getSaveDirectory then
+        basePaths[#basePaths+1] = "ShiftLine/Songs"
+    else
+        local appdata = os.getenv("APPDATA") or os.getenv("HOME")
+        if appdata then
+            local appSongs = appdata .. "/ShiftLine/Songs"
+            basePaths[#basePaths+1] = appSongs
+        end
     end
 
     local sflfoldname = {}
     local sflpath = {}
+    local basePath = {}
 
     log.info('scratchsfl: scanning basePaths: '..table.concat(basePaths, ', '))
     for _, base in ipairs(basePaths) do
@@ -130,6 +137,7 @@ function scratchsfl.load()
                 if chartPath then
                     sflfoldname[#sflfoldname + 1] = foldName
                     sflpath[#sflpath + 1] = chartPath
+                    basePath[#basePath + 1] = base
                 end
             end
         end
@@ -148,8 +156,7 @@ function scratchsfl.load()
             end
         end
     end
-    scratchsfl.foldname, scratchsfl.list, scratchsfl.path= sflfoldname, filelist, sflpath
-    log.info('scratchsfl: found ' .. tostring(#sflfoldname) .. ' songs, ' .. tostring(#sflpath) .. ' sfl paths')
+    scratchsfl.foldname, scratchsfl.list, scratchsfl.path, scratchsfl.basePath = sflfoldname, filelist, sflpath, basePath
 end
 
 -- モジュールとしてテーブルを返す
