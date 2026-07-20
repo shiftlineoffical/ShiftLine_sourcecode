@@ -1,17 +1,36 @@
---[[
-エディタモード - 譜面編集用
-Play画面でEキーを押すことで遷移
-- 譜面は自動で流れない
-- スペースキーでスタート
-- F1でオートプレイ切り替え
-- Qでその楽曲SFLだけを再読み込み
+﻿--[[
+local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
+繧ｨ繝・ぅ繧ｿ繝｢繝ｼ繝・- 隴憺擇邱ｨ髮・畑
+Play逕ｻ髱｢縺ｧE繧ｭ繝ｼ繧呈款縺吶％縺ｨ縺ｧ驕ｷ遘ｻ
+- 隴憺擇縺ｯ閾ｪ蜍輔〒豬√ｌ縺ｪ縺・
+- 繧ｹ繝壹・繧ｹ繧ｭ繝ｼ縺ｧ繧ｹ繧ｿ繝ｼ繝・
+- F1縺ｧ繧ｪ繝ｼ繝医・繝ｬ繧､蛻・ｊ譖ｿ縺・
+- Q縺ｧ縺昴・讌ｽ譖ｲSFL縺縺代ｒ蜀崎ｪｭ縺ｿ霎ｼ縺ｿ
 ]]
 
 ---@diagnostic disable: undefined-global
 local editor = {}
 local log = require "log"
 
--- エディタ固有の状態
+-- 繧ｨ繝・ぅ繧ｿ蝗ｺ譛峨・迥ｶ諷・
 local editorAutoplay = false
 local editorStarted = false
 
@@ -33,19 +52,19 @@ local function resetEditorChartPlayback()
     end
 end
 
--- 初期化
+-- 蛻晄悄蛹・
 function editor.load()
     editorAutoplay = false
     editorStarted = false
     
-    -- play モジュールの必要な変数を初期化
+    -- play 繝｢繧ｸ繝･繝ｼ繝ｫ縺ｮ蠢・ｦ√↑螟画焚繧貞・譛溷喧
     alpha = 0
     jacketalpha = 0
     playTimer = 0
     metaDisplayTimer = 0
     metaDisplayShown = false
     metaDisplayFinished = false
-    musicload = 1  -- editor では常に musicload = 1
+    musicload = 1  -- editor 縺ｧ縺ｯ蟶ｸ縺ｫ musicload = 1
     songStarted = false
     jacketimg = nil
     musictime = 0
@@ -59,7 +78,7 @@ function editor.load()
     lanegravity = 1
     notegravity = 1
     
-    -- levelColors を初期化（play.lua の levelColors と同じ）
+    -- levelColors 繧貞・譛溷喧・・lay.lua 縺ｮ levelColors 縺ｨ蜷後§・・
     levelColors = levelColors or {
         easy = {0.1, 1, 0.1},
         normal = {0.5, 0.5, 1},
@@ -68,10 +87,10 @@ function editor.load()
         default = {0.5, 0.1, 0.5}
     }
     
-    log.info("エディタモード起動")
+    log.info("Editor initialized")
 end
 
--- 更新
+-- 譖ｴ譁ｰ
 function editor.update(dt)
     if not bgmSource then
         return
@@ -99,75 +118,75 @@ function editor.update(dt)
     end
 end
 
--- 描画
+-- 謠冗判
 function editor.draw()
-    -- play と同じ描画ロジック
+    -- play 縺ｨ蜷後§謠冗判繝ｭ繧ｸ繝・け
     musicdatadraw()
     
-    -- レーン・判定ライン描画
+    -- 繝ｬ繝ｼ繝ｳ繝ｻ蛻､螳壹Λ繧､繝ｳ謠冗判
     notelane()
     drawJudgeline()
     drawNotes()
     drawJudgeHitEffects()
     
-    -- コンボとスコア表示
+    -- 繧ｳ繝ｳ繝懊→繧ｹ繧ｳ繧｢陦ｨ遉ｺ
     drawComboDisplay()
     drawScoreDisplay()
     
-    -- エディタ情報表示
+    -- 繧ｨ繝・ぅ繧ｿ諠・ｱ陦ｨ遉ｺ
     drawEditorInfo()
 end
 
--- エディタ情報を画面に表示
+-- 繧ｨ繝・ぅ繧ｿ諠・ｱ繧堤判髱｢縺ｫ陦ｨ遉ｺ
 function drawEditorInfo()
     love.graphics.setColor(1, 1, 1, 0.8)
     local baseFont = love.graphics.getFont()
     love.graphics.setFont(baseFont)
     
-    local infoText = "--- エディタモード ---"
+    local infoText = "--- 繧ｨ繝・ぅ繧ｿ繝｢繝ｼ繝・---"
     love.graphics.print(infoText, 10, 10)
     
-    local statusText = "状態: "
+    local statusText = "迥ｶ諷・ "
     if editorStarted then
         if editorAutoplay then
-            statusText = statusText .. "プレイ中 (オートプレイ: ON)"
+            statusText = statusText .. "繝励Ξ繧､荳ｭ (繧ｪ繝ｼ繝医・繝ｬ繧､: ON)"
         else
-            statusText = statusText .. "プレイ中 (オートプレイ: OFF)"
+            statusText = statusText .. "繝励Ξ繧､荳ｭ (繧ｪ繝ｼ繝医・繝ｬ繧､: OFF)"
         end
     else
-        statusText = statusText .. "停止中"
+        statusText = statusText .. "蛛懈ｭ｢荳ｭ"
     end
     love.graphics.print(statusText, 10, 30)
     
-    local controlText = "[SPACE] スタート  [F1] オートプレイ切替  [Q] SFL再読込  [F10] コンソール  [ESC] 終了"
+    local controlText = "[SPACE] Start/Pause [F1] Toggle autoplay [Q] Export SFL [F10] Toggle fullscreen [ESC] Back"
     love.graphics.print(controlText, 10, 50)
     
     if bgmSource then
-        local timeText = string.format("再生時間: %.2f秒", musictime)
+        local timeText = string_format("Time: %.2f sec", musictime)
         love.graphics.print(timeText, 10, 70)
     end
 end
 
--- キー入力処理
+-- 繧ｭ繝ｼ蜈･蜉帛・逅・
 function editor.keypressed(key, scancode, isrepeat)
     if key == "escape" then
-        -- エディタを終了して play に戻る
+        -- 繧ｨ繝・ぅ繧ｿ繧堤ｵゆｺ・＠縺ｦ play 縺ｫ謌ｻ繧・
         if bgmSource then
             bgmSource:stop()
         end
-        programnumber = 4  -- play に戻る
+        programnumber = 4  -- play 縺ｫ謌ｻ繧・
         program = nil
         return
     end
     
     if key == "space" then
-        -- スタート/ストップ
+        -- 繧ｹ繧ｿ繝ｼ繝・繧ｹ繝医ャ繝・
         if not bgmSource or musicload ~= 1 then
             return
         end
         
         if not editorStarted then
-            -- スタート
+            -- 繧ｹ繧ｿ繝ｼ繝・
             editorStarted = true
             songStarted = false
             finished = false
@@ -183,7 +202,7 @@ function editor.keypressed(key, scancode, isrepeat)
                 songStarted = true
             end
         else
-            -- 停止
+            -- 蛛懈ｭ｢
             editorStarted = false
             if bgmSource then
                 bgmSource:pause()
@@ -193,19 +212,19 @@ function editor.keypressed(key, scancode, isrepeat)
     end
     
     if key == "f1" then
-        -- オートプレイ切り替え
+        -- 繧ｪ繝ｼ繝医・繝ｬ繧､蛻・ｊ譖ｿ縺・
         editorAutoplay = not editorAutoplay
-        log.info("オートプレイ: " .. (editorAutoplay and "ON" or "OFF"))
+        log.info("繧ｪ繝ｼ繝医・繝ｬ繧､: " .. (editorAutoplay and "ON" or "OFF"))
         return
     end
     
     if key == "q" then
-        -- SFL ファイルを再読み込み
+        -- SFL 繝輔ぃ繧､繝ｫ繧貞・隱ｭ縺ｿ霎ｼ縺ｿ
         reloadCurrentChart()
         return
     end
     
-    -- 重力変更キー（楽曲視点の切り替え）
+    -- 驥榊鴨螟画峩繧ｭ繝ｼ・域･ｽ譖ｲ隕也せ縺ｮ蛻・ｊ譖ｿ縺茨ｼ・
     if key == "a" then
         lanegravity = 2
     elseif key == "s" then
@@ -217,40 +236,40 @@ function editor.keypressed(key, scancode, isrepeat)
     end
 end
 
--- キー離し処理
+-- 繧ｭ繝ｼ髮｢縺怜・逅・
 function editor.keyreleased(key, scancode)
-    -- エディタではキー離しの特殊処理は不要
+    -- 繧ｨ繝・ぅ繧ｿ縺ｧ縺ｯ繧ｭ繝ｼ髮｢縺励・迚ｹ谿雁・逅・・荳崎ｦ・
 end
 
--- マウス入力処理（不使用）
+-- 繝槭え繧ｹ蜈･蜉帛・逅・ｼ井ｸ堺ｽｿ逕ｨ・・
 function editor.mousepressed(x, y, button)
-    -- エディタではマウス入力は不使用
+    -- 繧ｨ繝・ぅ繧ｿ縺ｧ縺ｯ繝槭え繧ｹ蜈･蜉帙・荳堺ｽｿ逕ｨ
 end
 
--- マウスホイール処理 - 一小節ごとに進む/戻す
+-- 繝槭え繧ｹ繝帙う繝ｼ繝ｫ蜃ｦ逅・- 荳蟆冗ｯ縺斐→縺ｫ騾ｲ繧/謌ｻ縺・
 function editor.wheelmoved(x, y)
     if not editorStarted or not bgmSource then
         return
     end
     
-    -- BPM を取得（デフォルト 120）
+    -- BPM 繧貞叙蠕暦ｼ医ョ繝輔か繝ｫ繝・120・・
     local bpm = 120
     if chartRuntime and chartRuntime.chart and chartRuntime.chart.bpm then
         bpm = tonumber(chartRuntime.chart.bpm) or 120
     end
     
-    -- 一小節の時間（秒）= (60 / BPM) * 4 = 240 / BPM
-    local measureTime = 240 / math.max(1, bpm)
+    -- 荳蟆冗ｯ縺ｮ譎る俣・育ｧ抵ｼ・ (60 / BPM) * 4 = 240 / BPM
+    local measureTime = 240 / math_max(1, bpm)
     
-    -- マウスホイール値（y > 0 なら上に回す = 時間進む）
-    local measureCount = math.floor(math.abs(y))
+    -- 繝槭え繧ｹ繝帙う繝ｼ繝ｫ蛟､・・ > 0 縺ｪ繧我ｸ翫↓蝗槭☆ = 譎る俣騾ｲ繧・・
+    local measureCount = math_floor(math.abs(y))
     local delta = (y > 0) and (measureCount * measureTime) or -(measureCount * measureTime)
     
-    -- 新しい再生位置
-    local newTime = math.max(0, musictime + delta)
+    -- 譁ｰ縺励＞蜀咲函菴咲ｽｮ
+    local newTime = math_max(0, musictime + delta)
     musictime = newTime
     
-    -- bgmSource を新しい位置にシーク
+    -- bgmSource 繧呈眠縺励＞菴咲ｽｮ縺ｫ繧ｷ繝ｼ繧ｯ
     if bgmSource then
         local okSeek = pcall(bgmSource.seek, bgmSource, newTime, "seconds")
         if not okSeek then
@@ -259,7 +278,7 @@ function editor.wheelmoved(x, y)
     end
 end
 
--- 終了処理
+-- 邨ゆｺ・・逅・
 function editor.quit()
     editorAutoplay = false
     editorStarted = false
@@ -270,4 +289,6 @@ function editor.quit()
 end
 
 return editor
+
+
 

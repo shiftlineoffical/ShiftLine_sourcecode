@@ -1,4 +1,4 @@
---[[
+﻿--[[
 linedirections = 判定ラインの向き
 1=下(初期値)
 2=左
@@ -25,6 +25,7 @@ local audiocache = require "audiocache"
 local notemove = require "notemove"
 local JSON = require "JSON"
 local ui = require("lib.ui")
+local settings = require "settings"
 local story = require "storyselecter"
 
 ---@diagnostic disable: undefined-global, need-check-nil
@@ -2090,37 +2091,30 @@ local function drawDirectionGlyph(x, y, w, h, alpha, glow, horizontal)
     love.graphics.setLineWidth(1)
 end
 
-local function drawStylishNote(x, y, w, h, noteType, alpha, glow, tintEnabled)
-    local baseR, baseG, baseB = getNoteColor(noteType, tintEnabled)
-    local br, bg, bb = applyBrightness(baseR, baseG, baseB, glow * 0.36)
+local function drawStylishNote(x, y, w, h, noteType, alpha, glow, tintEnabled, noteDir)
     local baseAlpha = clamp01(alpha or 1)
     if baseAlpha <= 0 then
         return
     end
 
     local minSize = math.max(1, math.min(w, h))
-    local glowPad = math.max(1.2, minSize * 0.18)
-    love.graphics.setColor(br, bg, bb, clamp01(baseAlpha * (0.2 + glow * 0.22)))
-    love.graphics.rectangle("fill", x - glowPad, y - glowPad, w + glowPad * 2, h + glowPad * 2)
+    local verticalFlow = isVerticalNoteDirection(noteDir)
 
-    love.graphics.setColor(0.03, 0.05, 0.08, clamp01(baseAlpha * 0.92))
-    love.graphics.rectangle("fill", x, y, w, h)
-
-    local inset = math.max(1, minSize * 0.14)
-    local innerX = x + inset
-    local innerY = y + inset
-    local innerW = w - inset * 2
-    local innerH = h - inset * 2
-    if innerW > 1 and innerH > 1 then
-        love.graphics.setColor(br * 0.92, bg * 0.94, bb * 0.97, clamp01(baseAlpha * (0.76 + glow * 0.12)))
-        love.graphics.rectangle("fill", innerX, innerY, innerW, innerH)
-
-        local shineThickness = math.max(1, innerH * 0.28)
-        love.graphics.setColor(1, 1, 1, clamp01(baseAlpha * (0.22 + glow * 0.12)))
-        love.graphics.rectangle("fill", innerX, innerY, innerW, shineThickness)
+    if not tintEnabled then
+        love.graphics.setColor(1, 1, 1, baseAlpha)
+        love.graphics.setLineWidth(math.max(1, minSize * 0.25))
+        if verticalFlow then
+            love.graphics.line(x + w * 0.5, y, x + w * 0.5, y + h)
+        else
+            love.graphics.line(x, y + h * 0.5, x + w, y + h * 0.5)
+        end
+        love.graphics.setLineWidth(1)
+        return
     end
 
-    love.graphics.setColor(0.9, 0.97, 1.0, clamp01(baseAlpha * (0.5 + glow * 0.1)))
+    love.graphics.setColor(1, 1, 1, baseAlpha)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(0.78, 0.78, 0.78, baseAlpha)
     love.graphics.rectangle("line", x, y, w, h)
 end
 
@@ -2201,58 +2195,17 @@ local function drawLongNoteConnector(startState, endState, alpha, tintEnabled, h
         return
     end
 
-    local baseFillR, baseFillG, baseFillB = 0.06, 0.08, 0.11
-    local gradFrom = {0.56, 0.56, 0.58}
-    local gradTo = {0.56, 0.56, 0.58}
-    local railR, railG, railB = 0.88, 0.96, 1.0
-    local borderR, borderG, borderB = 0.97, 0.99, 1.0
-    if holdBroken then
-        baseFillR, baseFillG, baseFillB = 0.17, 0.03, 0.05
-        gradFrom = {0.98, 0.34, 0.36}
-        gradTo = {0.72, 0.10, 0.14}
-        railR, railG, railB = 1.0, 0.63, 0.63
-        borderR, borderG, borderB = 1.0, 0.84, 0.84
-    elseif not tintEnabled then
-        gradFrom = {0.5, 0.52, 0.56}
-        gradTo = {0.5, 0.52, 0.56}
-        railR, railG, railB = 0.9, 0.92, 0.96
-        borderR, borderG, borderB = 0.88, 0.9, 0.94
+    if not tintEnabled then
+        love.graphics.setColor(1, 1, 1, baseAlpha)
+        love.graphics.setLineWidth(math.max(1, minor * 0.35))
+        love.graphics.line(startState.x, startState.y, endState.x, endState.y)
+        love.graphics.setLineWidth(1)
+        return
     end
 
-    love.graphics.setColor(baseFillR, baseFillG, baseFillB, clamp01(baseAlpha * 0.92))
+    love.graphics.setColor(1, 1, 1, baseAlpha)
     love.graphics.rectangle("fill", x, y, w, h)
-
-    local inset = math.max(1, math.min(w, h) * 0.08)
-    local panelX = x + inset
-    local panelY = y + inset
-    local panelW = w - inset * 2
-    local panelH = h - inset * 2
-    if panelW > 1 and panelH > 1 then
-        drawLinearGradientRect(
-            panelX,
-            panelY,
-            panelW,
-            panelH,
-            gradFrom,
-            gradTo,
-            clamp01(baseAlpha * 0.94),
-            verticalFlow
-        )
-
-        if verticalFlow then
-            local railW = math.max(1, panelW * 0.1)
-            love.graphics.setColor(railR, railG, railB, clamp01(baseAlpha * 0.36))
-            love.graphics.rectangle("fill", panelX + railW, panelY, railW, panelH)
-            love.graphics.rectangle("fill", panelX + panelW - railW * 2, panelY, railW, panelH)
-        else
-            local railH = math.max(1, panelH * 0.1)
-            love.graphics.setColor(railR, railG, railB, clamp01(baseAlpha * 0.36))
-            love.graphics.rectangle("fill", panelX, panelY + railH, panelW, railH)
-            love.graphics.rectangle("fill", panelX, panelY + panelH - railH * 2, panelW, railH)
-        end
-    end
-
-    love.graphics.setColor(borderR, borderG, borderB, clamp01(baseAlpha * 0.5))
+    love.graphics.setColor(0.75, 0.75, 0.75, baseAlpha)
     love.graphics.rectangle("line", x, y, w, h)
 end
 
@@ -2734,10 +2687,11 @@ function musicdatadraw()
         metaDisplayShown = true
     end
 
+    local w, h = getDisplaySize()
     love.graphics.setColor(1, 1, 1, drawJacketAlpha)
     if jacketimg then
         jacket = jacketimg
-        love.graphics.draw(jacketimg, 0, 0, 0, displayx / jacketimg:getWidth(), displayy / jacketimg:getHeight())
+        love.graphics.draw(jacketimg, 0, 0, 0, w / jacketimg:getWidth(), h / jacketimg:getHeight())
     end
     name = displayTitle
     artist = displayArtist
@@ -2747,20 +2701,20 @@ function musicdatadraw()
     local safeArtistFont = getSafeFont(artistfont)
 
     love.graphics.setFont(safeLeftTitleFont)
-    love.graphics.print(displayTitle, 0, displayy - safeLeftTitleFont:getHeight())
+    love.graphics.print(displayTitle, 0, h - safeLeftTitleFont:getHeight())
     love.graphics.setColor(1, 1, 1, drawAlpha)
     love.graphics.setFont(safeTitleFont)
-    love.graphics.print(displayTitle, displayx / 2 - safeTitleFont:getWidth(displayTitle) / 2, displayy / 2 + displayy / 10)
+    love.graphics.print(displayTitle, w / 2 - safeTitleFont:getWidth(displayTitle) / 2, h / 2 + h / 10)
     love.graphics.setFont(safeArtistFont)
-    love.graphics.print(displayArtist, displayx / 2 - safeArtistFont:getWidth(displayArtist) / 2, displayy / 2 + displayy / 5)
+    love.graphics.print(displayArtist, w / 2 - safeArtistFont:getWidth(displayArtist) / 2, h / 2 + h / 5)
     if requestCountText then
         love.graphics.setColor(1, 1, 1, drawAlpha)
         local countText = requestCountText
-        love.graphics.print(countText, displayx / 2 - safeArtistFont:getWidth(countText) / 2, displayy / 2 + displayy / 4)
+        love.graphics.print(countText, w / 2 - safeArtistFont:getWidth(countText) / 2, h / 2 + h / 4)
     end
     love.graphics.setFont(safeTitleFont)
     love.graphics.setColor(levelcolor[1], levelcolor[2], levelcolor[3], drawAlpha)
-    love.graphics.print(displayLevel, displayx / 2 - safeTitleFont:getWidth(displayLevel) / 2, displayy / 2 + displayy / 5 * 1.5)
+    love.graphics.print(displayLevel, w / 2 - safeTitleFont:getWidth(displayLevel) / 2, h / 2 + h / 5 * 1.5)
 end
 
 
@@ -3211,7 +3165,7 @@ function drawNotes()
         local w, h = getNoteVisualSize(noteDir, stickLength, stickThickness)
         local x = n.x - w * 0.5
         local y = n.y - h * 0.5
-        drawStylishNote(x, y, w, h, n.type, alpha, glow, tintEnabled)
+        drawStylishNote(x, y, w, h, n.type, alpha, glow, tintEnabled, noteDir)
     end
 end
 
@@ -3438,8 +3392,9 @@ function play.draw()
     end
 
     -- FPS表示
-    if settingsdata and settingsdata.playsettings and settingsdata.playsettings.showfps then
-        love.graphics.setFont(font)
+    if settings and settings.settingsdata and settings.settingsdata.playsettings and settings.settingsdata.playsettings.showfps then
+        local safeFont = getSafeFont(labelFont)
+        love.graphics.setFont(safeFont)
         love.graphics.setColor(1, 1, 1, 0.8)
         local fps = love.timer.getFPS()
         love.graphics.print("FPS: " .. math.floor(fps), 8, 8)

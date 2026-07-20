@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local gamejolt = {}
 local gamejoltuserdata={
 
@@ -10,7 +29,7 @@ local gamejoltuser=require "gamejoltuser"
 local log = require "log"
 local JSON = require "JSON"
 
--- 状態を外部から参照できるようにする
+-- 迥ｶ諷九ｒ螟夜Κ縺九ｉ蜿ら・縺ｧ縺阪ｋ繧医≧縺ｫ縺吶ｋ
 gamejolt.status = {
     authenticated = false,
     message = "",
@@ -40,33 +59,33 @@ local function connection(force)
     end
 
     if not (gamejoltuser.userid and gamejoltuser.user_token) or gamejoltuser.userid == "" then
-        updateStatus(false, "ユーザーネームとトークンを入力してください")
+        updateStatus(false, "GameJoltのユーザー情報が未設定です")
         return false
     end
 
     gamejoltuserdata.userid = gamejoltuser.userid
     gamejoltuserdata.user_token = gamejoltuser.user_token
 
-    -- 必ず2引数で初期化
+    -- 蠢・★2蠑墓焚縺ｧ蛻晄悄蛹・
     gamejolt:init(1053992, "d9b3bdca24c8156fe10c485bdc827a25")
 
-    -- 認証
+    -- 隱崎ｨｼ
     local auth_success = gamejolt:users_auth(gamejoltuserdata.userid, gamejoltuserdata.user_token)
 
     if auth_success == "true" then
         log.info("GameJolt authentication successful.: " .. gamejoltuserdata.userid)
-        updateStatus(true, "認証成功")
+        updateStatus(true, "隱崎ｨｼ謌仙粥")
 
-        -- 認証成功後にセッション開始
+        -- 隱崎ｨｼ謌仙粥蠕後↓繧ｻ繝・す繝ｧ繝ｳ髢句ｧ・
         local session = gamejolt:sessions_open()
         if session and session.success == "true" then
             log.info("GameJolt connection successful")
-            updateStatus(true, "認証・接続成功")
+            updateStatus(true, "GameJolt接続に成功しました")
         else
-            updateStatus(true, "認証成功 (セッション開始失敗)")
+            updateStatus(true, "隱崎ｨｼ謌仙粥 (繧ｻ繝・す繝ｧ繝ｳ髢句ｧ句､ｱ謨・")
         end
 
-        -- ユーザー情報読み取り (userID 取得 -> users_fetch_uid で再取得)
+        -- 繝ｦ繝ｼ繧ｶ繝ｼ諠・ｱ隱ｭ縺ｿ蜿悶ｊ (userID 蜿門ｾ・-> users_fetch_uid 縺ｧ蜀榊叙蠕・
         local okUn, userdata_uname = pcall(function() return gamejolt:users_fetch_uname(gamejoltuserdata.userid) end)
         if okUn and userdata_uname and userdata_uname.users and userdata_uname.users[1] then
             local fetched = userdata_uname.users[1]
@@ -90,7 +109,7 @@ local function connection(force)
 
     else
         log.warn("GameJolt authentication failed.")
-        updateStatus(false, "認証失敗")
+        updateStatus(false, "GameJolt認証に失敗しました")
         gamejolt.status.username = ""
         gamejolt.status.userId = ""
         gamejolt.status.avatarUrl = ""
@@ -205,7 +224,7 @@ end
 
 
 function session()
-    -- 既にセッション確立済みなら何もしない
+    -- 譌｢縺ｫ繧ｻ繝・す繝ｧ繝ｳ遒ｺ遶区ｸ医∩縺ｪ繧我ｽ輔ｂ縺励↑縺・
     if gamejolt.status.authenticated then
         return
     end
@@ -213,7 +232,7 @@ end
 
 
 function gamejolt.quit()
-    -- セッションが開いていたら閉じる
+    -- 繧ｻ繝・す繝ｧ繝ｳ縺碁幕縺・※縺・◆繧蛾哩縺倥ｋ
     if gamejolt and gamejolt.sessions_close then
         pcall(function() gamejolt:sessions_close() end)
     end
@@ -221,3 +240,5 @@ end
 
 
 return gamejolt
+
+

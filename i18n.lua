@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local i18n = {}
 
 local localeTexts = {
@@ -5,7 +24,7 @@ local localeTexts = {
         clickToStart = "click to start",
         exit = "Exit",
         login = "ログイン",
-        autoLogin = "自動でログインする",
+        autoLogin = "ログイン情報を記憶する",
         modeSolo = "Solo",
         modeOnline = "Online",
         modeSettings = "Settings",
@@ -93,7 +112,7 @@ function i18n.tf(key, ...)
     if select("#", ...) == 0 then
         return text
     end
-    return string.format(text, ...)
+    return string_format(text, ...)
 end
 
 function i18n.getLanguage()
@@ -101,3 +120,5 @@ function i18n.getLanguage()
 end
 
 return i18n
+
+

@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local gamemodeselect = {}
 
 local log = require "log"
@@ -112,11 +131,11 @@ local function updateLayout(force)
         slope = -(displayWidth / 20) / (displayHeight * 0.9)
         rebuildButtons()
 
-        local baseSize = math.max(28, math.floor(displayHeight * 0.08))
+        local baseSize = math_max(28, math_floor(displayHeight * 0.08))
         if i18n.getLanguage() == "jp" then
-            baseSize = math.max(24, math.floor(displayHeight * 0.072))
+            baseSize = math_max(24, math_floor(displayHeight * 0.072))
         end
-        local smallSize = math.max(18, math.floor(displayHeight * 0.03))
+        local smallSize = math_max(18, math_floor(displayHeight * 0.03))
         originalfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", baseSize)
         accountfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", smallSize)
     end
@@ -145,11 +164,11 @@ function gamemodeselect.load()
 
     print("Loaded Game Mode Selection screen")
 
-    local baseSize = math.max(28, math.floor(displayHeight * 0.08))
+    local baseSize = math_max(28, math_floor(displayHeight * 0.08))
     if i18n.getLanguage() == "jp" then
-        baseSize = math.max(24, math.floor(displayHeight * 0.072))
+        baseSize = math_max(24, math_floor(displayHeight * 0.072))
     end
-    local smallSize = math.max(18, math.floor(displayHeight * 0.03))
+    local smallSize = math_max(18, math_floor(displayHeight * 0.03))
 
     originalfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", baseSize)
     accountfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", smallSize)
@@ -177,6 +196,7 @@ function gamemodeselect.mousepressed(x, y, button)
 
     if soloPoly and pointInPolygon(x, y, soloPoly) then
         gamemodeselect.selectedmode = 1
+        gamemodeselect.endprocess = false
         fading = true
         log.info("Go to solo mode")
         return
@@ -188,17 +208,15 @@ function gamemodeselect.mousepressed(x, y, button)
             return
         end
         gamemodeselect.selectedmode = 2
+        gamemodeselect.endprocess = false
         fading = true
         log.info("Go to Story mode")
         return
     end
 
     if settingPoly and pointInPolygon(x, y, settingPoly) then
-        if not (gamejolt.status and gamejolt.status.authenticated and (gamejolt.status.username == "cloudoamp" or gamejolt.status.username == "hamu132")) then
-            log.warn("Settings access denied: GameJolt login required as cloudoamp or hamu132")
-            return
-        end
         gamemodeselect.selectedmode = 3
+        gamemodeselect.endprocess = false
         fading = true
         log.info("Go to Settings")
         return
@@ -206,6 +224,7 @@ function gamemodeselect.mousepressed(x, y, button)
 
     if titlePoly and pointInPolygon(x, y, titlePoly) then
         gamemodeselect.selectedmode = 0
+        gamemodeselect.endprocess = false
         fading = true
         log.info("Go to Title")
         return
@@ -232,3 +251,5 @@ function gamemodeselect.drawOverlay()
 end
 
 return gamemodeselect
+
+

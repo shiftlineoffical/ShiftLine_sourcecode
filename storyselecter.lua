@@ -1,4 +1,23 @@
-﻿local story = {}
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
+local story = {}
 local displayWidth, displayHeight = love.graphics.getDimensions()
 local log = require "log"
 local json = require "JSON"
@@ -8,7 +27,7 @@ local scratchsfs = require "scratchsfs"
 local bluescreen = require "bluescreen"
 local storyplayer = require "storyplayer"
 
--- UI管理
+-- UI邂｡逅・
 local slope = -(displayWidth / 20) / (displayHeight * 0.9)
 local storyFolders = {}
 local buttons = {}
@@ -18,7 +37,7 @@ local fadeAlpha = 0
 local fading = false
 local fadeSpeed = 1.5
 
--- ストーリー再生管理
+-- 繧ｹ繝医・繝ｪ繝ｼ蜀咲函邂｡逅・
 local storyData = nil
 local storyLines = {}
 local currentLineIndex = 0
@@ -37,11 +56,11 @@ local function onStoryEffect(effect)
     executeEffect(effect)
 end
 
--- ストーリーデータの読み込み
+-- 繧ｹ繝医・繝ｪ繝ｼ繝・・繧ｿ縺ｮ隱ｭ縺ｿ霎ｼ縺ｿ
 local function loadStories()
     storyFolders = {}
 
-    -- scratchsfsを使用してストーリー情報を取得
+    -- scratchsfs繧剃ｽｿ逕ｨ縺励※繧ｹ繝医・繝ｪ繝ｼ諠・ｱ繧貞叙蠕・
     scratchsfs.load()
 
     local grouped = {}
@@ -58,7 +77,7 @@ local function loadStories()
                 folderOrder[#folderOrder + 1] = folderName
             end
 
-            table.insert(grouped[folderName], {
+            table_insert(grouped[folderName], {
                 title = storyTitle,
                 file = storyFile,
                 folder = folderName
@@ -69,7 +88,7 @@ local function loadStories()
         for _, folderName in ipairs(folderOrder) do
             local entries = grouped[folderName]
             table.sort(entries, function(a, b) return a.title < b.title end)
-            table.insert(storyFolders, {
+            table_insert(storyFolders, {
                 folder = folderName,
                 entries = entries
             })
@@ -121,10 +140,10 @@ local function parseStoryFileLines(content, metadata)
                 metadata.bgm = line:match("^#%s+BGM%s+(.+)") or metadata.bgm
             elseif line:match("^#") or line:match("^@") or line:match("^!") then
                 if line:match("^@") or line:match("^!") then
-                    table.insert(currentEffects, line)
+                    table_insert(currentEffects, line)
                 end
             else
-                table.insert(lines, {
+                table_insert(lines, {
                     text = line,
                     effects = currentEffects
                 })
@@ -136,7 +155,7 @@ local function parseStoryFileLines(content, metadata)
     return metadata, lines
 end
 
--- ストーリーファイルのパーサー
+-- 繧ｹ繝医・繝ｪ繝ｼ繝輔ぃ繧､繝ｫ縺ｮ繝代・繧ｵ繝ｼ
 parseStoryFile = function(filepath)
     local content, err = love.filesystem.read(filepath)
     if not content then
@@ -168,7 +187,7 @@ getStoryTitleFromFile = function(filepath)
     return getStoryTitle(filepath)
 end
 
--- 演出コマンドの実行
+-- 貍泌・繧ｳ繝槭Φ繝峨・螳溯｡・
 executeEffect = function(effectLine)
     if effectLine:match("^@%s*illust") then
         local illust, fadeTime = effectLine:match("^@%s*illust%s+(%S+)%s*(%S*)")
@@ -209,7 +228,7 @@ local function getCurrentFolderName()
     return storyFolders[currentFolderIndex] and storyFolders[currentFolderIndex].folder or ""
 end
 
--- UIボタンの構築
+-- UI繝懊ち繝ｳ縺ｮ讒狗ｯ・
 local function getParallelogram(x1, x2, y1, y2)
     local dx = slope * (y2 - y1)
     return {
@@ -234,9 +253,9 @@ local function rebuildButtons()
     local entries = folderMode and storyFolders or getCurrentFolderEntries()
     local totalCount = #entries + 1
 
-    -- グリッド配置: 2列×複数行
+    -- 繧ｰ繝ｪ繝・ラ驟咲ｽｮ: 2蛻療苓､・焚陦・
     local cols = 2
-    local rows = math.max(1, math.ceil(totalCount / cols))
+    local rows = math_max(1, math.ceil(totalCount / cols))
 
     local buttonWidth = displayWidth / (cols * 2.2)
     local buttonHeight = displayHeight / (rows * 2.2)
@@ -245,7 +264,7 @@ local function rebuildButtons()
 
     for i = 1, totalCount do
         local col = ((i - 1) % cols)
-        local row = math.floor((i - 1) / cols)
+        local row = math_floor((i - 1) / cols)
         local x1 = startX + col * (buttonWidth + displayWidth / 20)
         local x2 = x1 + buttonWidth
         local y1 = startY + row * (buttonHeight + displayHeight / 20)
@@ -327,7 +346,7 @@ function story.load()
     storyplayer.load()
 
     if not isPlayingStory then
-        -- 選択画面の初期化
+        -- 驕ｸ謚樒判髱｢縺ｮ蛻晄悄蛹・
         folderMode = true
         currentFolderIndex = nil
         updateLayout(true)
@@ -339,17 +358,17 @@ function story.load()
         selectedStory = nil
         story.endprocess = false
     else
-        -- ストーリー再生画面の初期化
+        -- 繧ｹ繝医・繝ｪ繝ｼ蜀咲函逕ｻ髱｢縺ｮ蛻晄悄蛹・
         fadeAlpha = 0
         fading = false
         currentLineIndex = 0
         story.endprocess = false
     end
     
-    -- フォント設定
-    local baseSize = math.max(28, math.floor(displayHeight * 0.08))
+    -- 繝輔か繝ｳ繝郁ｨｭ螳・
+    local baseSize = math_max(28, math_floor(displayHeight * 0.08))
     if i18n.getLanguage() == "jp" then
-        baseSize = math.max(24, math.floor(displayHeight * 0.072))
+        baseSize = math_max(24, math_floor(displayHeight * 0.072))
     end
     local font = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", baseSize)
     love.graphics.setFont(font)
@@ -386,7 +405,7 @@ function story.draw()
     if storyplayer.isActive() then
         storyplayer.draw()
     else
-        -- ストーリー選択画面
+        -- 繧ｹ繝医・繝ｪ繝ｼ驕ｸ謚樒判髱｢
         love.graphics.setColor(0.05, 0.05, 0.05)
         love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
         
@@ -449,7 +468,7 @@ function story.mousepressed(x, y, button)
         return
     end
 
-    -- 選択画面時のボタン処理
+    -- 驕ｸ謚樒判髱｢譎ゅ・繝懊ち繝ｳ蜃ｦ逅・
     for _, btn in ipairs(buttons) do
         if pointInPolygon(x, y, btn.poly) then
             if btn.action == "back" then
@@ -475,7 +494,7 @@ function story.mousepressed(x, y, button)
             end
 
             if btn.action == "story" then
-                -- ストーリーをパース
+                -- 繧ｹ繝医・繝ｪ繝ｼ繧偵ヱ繝ｼ繧ｹ
                 local storyPath = btn.file
                 storyData = parseStoryFile(storyPath)
 
@@ -495,3 +514,5 @@ function story.mousepressed(x, y, button)
 end
 
 return story
+
+

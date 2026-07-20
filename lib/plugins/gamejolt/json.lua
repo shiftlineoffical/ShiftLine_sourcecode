@@ -1,4 +1,4 @@
--- -*- coding: utf-8 -*-
+﻿-- -*- coding: utf-8 -*-
 --
 -- Simple JSON encoding and decoding in pure Lua.
 --
@@ -14,6 +14,25 @@
 -- the web-page links above, and the 'AUTHOR_NOTE' string below are
 -- maintained. Enjoy.
 --
+local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local VERSION = 20141223.14 -- version history at end of file
 local AUTHOR_NOTE = "-[ JSON.lua package by Jeffrey Friedl (http://regex.info/blog/lua/json) version 20141223.14 ]-"
 
@@ -312,7 +331,7 @@ local function unicode_codepoint_as_utf8(codepoint)
       --
       -- 110yyyxx 10xxxxxx         <-- useful notation from http://en.wikipedia.org/wiki/Utf8
       --
-      local highpart = math.floor(codepoint / 0x40)
+      local highpart = math_floor(codepoint / 0x40)
       local lowpart  = codepoint - (0x40 * highpart)
       return string.char(0xC0 + highpart,
                          0x80 + lowpart)
@@ -321,9 +340,9 @@ local function unicode_codepoint_as_utf8(codepoint)
       --
       -- 1110yyyy 10yyyyxx 10xxxxxx
       --
-      local highpart  = math.floor(codepoint / 0x1000)
+      local highpart  = math_floor(codepoint / 0x1000)
       local remainder = codepoint - 0x1000 * highpart
-      local midpart   = math.floor(remainder / 0x40)
+      local midpart   = math_floor(remainder / 0x40)
       local lowpart   = remainder - 0x40 * midpart
 
       highpart = 0xE0 + highpart
@@ -350,11 +369,11 @@ local function unicode_codepoint_as_utf8(codepoint)
       --
       -- 11110zzz 10zzyyyy 10yyyyxx 10xxxxxx
       --
-      local highpart  = math.floor(codepoint / 0x40000)
+      local highpart  = math_floor(codepoint / 0x40000)
       local remainder = codepoint - 0x40000 * highpart
-      local midA      = math.floor(remainder / 0x1000)
+      local midA      = math_floor(remainder / 0x1000)
       remainder       = remainder - 0x1000 * midA
-      local midB      = math.floor(remainder / 0x40)
+      local midB      = math_floor(remainder / 0x40)
       local lowpart   = remainder - 0x40 * midB
 
       return string.char(0xF0 + highpart,
@@ -367,9 +386,9 @@ end
 function OBJDEF:onDecodeError(message, text, location, etc)
    if text then
       if location then
-         message = string.format("%s at char %d of: %s", message, location, text)
+         message = string_format("%s at char %d of: %s", message, location, text)
       else
-         message = string.format("%s: %s", message, text)
+         message = string_format("%s: %s", message, text)
       end
    end
 
@@ -579,7 +598,7 @@ local function grok_array(self, text, start, etc)
    while i <= text_len do
       local val, new_i = grok_one(self, text, i)
 
-      -- can't table.insert(VALUE, val) here because it's a no-op if val is nil
+      -- can't table_insert(VALUE, val) here because it's a no-op if val is nil
       VALUE[VALUE_INDEX] = val
       VALUE_INDEX = VALUE_INDEX + 1
 
@@ -641,9 +660,9 @@ function OBJDEF:decode(text, etc)
    end
 
    if text == nil then
-      self:onDecodeOfNilError(string.format("nil passed to JSON:decode()"), nil, nil, etc)
+      self:onDecodeOfNilError(string_format("nil passed to JSON:decode()"), nil, nil, etc)
    elseif type(text) ~= 'string' then
-      self:onDecodeError(string.format("expected string argument to JSON:decode(), got %s", type(text)), nil, nil, etc)
+      self:onDecodeError(string_format("expected string argument to JSON:decode(), got %s", type(text)), nil, nil, etc)
    end
 
    if text:match('^%s*$') then
@@ -652,7 +671,7 @@ function OBJDEF:decode(text, etc)
 
    if text:match('^%s*<') then
       -- Can't be JSON... we'll assume it's HTML
-      self:onDecodeOfHTMLError(string.format("html passed to JSON:decode()"), text, nil, etc)
+      self:onDecodeOfHTMLError(string_format("html passed to JSON:decode()"), text, nil, etc)
    end
 
    --
@@ -696,7 +715,7 @@ local function backslash_replacement_function(c)
    elseif c == '\\' then
       return '\\\\'
    else
-      return string.format("\\u%04x", c:byte())
+      return string_format("\\u%04x", c:byte())
    end
 end
 
@@ -728,9 +747,9 @@ local function object_or_array(self, T, etc)
 
    for key in pairs(T) do
       if type(key) == 'string' then
-         table.insert(string_keys, key)
+         table_insert(string_keys, key)
       elseif type(key) == 'number' then
-         table.insert(number_keys, key)
+         table_insert(number_keys, key)
          if key <= 0 or key >= math.huge then
             number_keys_must_be_strings = true
          elseif not maximum_number_key or key > maximum_number_key then
@@ -786,7 +805,7 @@ local function object_or_array(self, T, etc)
       for _, number_key in ipairs(number_keys) do
          local string_key = tostring(number_key)
          if map[string_key] == nil then
-            table.insert(string_keys , string_key)
+            table_insert(string_keys , string_key)
             map[string_key] = T[number_key]
          else
             self:onEncodeError("conflict converting table with mixed-type keys into a JSON object: key " .. number_key .. " exists both as a string and a number.", etc)
@@ -874,13 +893,13 @@ function encode_value(self, value, parents, etc, options, indent)
          --
          local ITEMS = { }
          for i = 1, maximum_number_key do
-            table.insert(ITEMS, encode_value(self, T[i], parents, etc, options, indent))
+            table_insert(ITEMS, encode_value(self, T[i], parents, etc, options, indent))
          end
 
          if options.pretty then
-            result_value = "[ " .. table.concat(ITEMS, ", ") .. " ]"
+            result_value = "[ " .. table_concat(ITEMS, ", ") .. " ]"
          else
-            result_value = "["  .. table.concat(ITEMS, ",")  .. "]"
+            result_value = "["  .. table_concat(ITEMS, ",")  .. "]"
          end
 
       elseif object_keys then
@@ -896,20 +915,20 @@ function encode_value(self, value, parents, etc, options, indent)
             for _, key in ipairs(object_keys) do
                local encoded = encode_value(self, tostring(key), parents, etc, options, indent)
                if options.align_keys then
-                  max_key_length = math.max(max_key_length, #encoded)
+                  max_key_length = math_max(max_key_length, #encoded)
                end
-               table.insert(KEYS, encoded)
+               table_insert(KEYS, encoded)
             end
             local key_indent = indent .. tostring(options.indent or "")
             local subtable_indent = key_indent .. string.rep(" ", max_key_length) .. (options.align_keys and "  " or "")
-            local FORMAT = "%s%" .. string.format("%d", max_key_length) .. "s: %s"
+            local FORMAT = "%s%" .. string_format("%d", max_key_length) .. "s: %s"
 
             local COMBINED_PARTS = { }
             for i, key in ipairs(object_keys) do
                local encoded_val = encode_value(self, TT[key], parents, etc, options, subtable_indent)
-               table.insert(COMBINED_PARTS, string.format(FORMAT, key_indent, KEYS[i], encoded_val))
+               table_insert(COMBINED_PARTS, string_format(FORMAT, key_indent, KEYS[i], encoded_val))
             end
-            result_value = "{\n" .. table.concat(COMBINED_PARTS, ",\n") .. "\n" .. indent .. "}"
+            result_value = "{\n" .. table_concat(COMBINED_PARTS, ",\n") .. "\n" .. indent .. "}"
 
          else
 
@@ -917,9 +936,9 @@ function encode_value(self, value, parents, etc, options, indent)
             for _, key in ipairs(object_keys) do
                local encoded_val = encode_value(self, TT[key],       parents, etc, options, indent)
                local encoded_key = encode_value(self, tostring(key), parents, etc, options, indent)
-               table.insert(PARTS, string.format("%s:%s", encoded_key, encoded_val))
+               table_insert(PARTS, string_format("%s:%s", encoded_key, encoded_val))
             end
-            result_value = "{" .. table.concat(PARTS, ",") .. "}"
+            result_value = "{" .. table_concat(PARTS, ",") .. "}"
 
          end
       else
@@ -1051,3 +1070,5 @@ return OBJDEF:new()
 --
 --   20100731.1    initial public release
 --
+
+

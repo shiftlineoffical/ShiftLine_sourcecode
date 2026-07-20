@@ -1,10 +1,29 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local md5 = {
   _VERSION     = "md5.lua 1.0.2",
   _DESCRIPTION = "MD5 computation in Lua (5.1-3, LuaJIT)",
   _URL         = "https://github.com/kikito/md5.lua",
   _LICENSE     = [[
     MIT LICENSE
-    Copyright (c) 2013 Enrique García Cota + Adam Baldwin + hanzao + Equi 4 Software
+    Copyright (c) 2013 Enrique Garcﾃｭa Cota + Adam Baldwin + hanzao + Equi 4 Software
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the
     "Software"), to deal in the Software without restriction, including
@@ -27,7 +46,7 @@ local md5 = {
 -- bit lib implementions
 
 local char, byte, format, rep, sub =
-  string.char, string.byte, string.format, string.rep, string.sub
+  string.char, string.byte, string_format, string.rep, string.sub
 local bit_or, bit_and, bit_not, bit_xor, bit_rshift, bit_lshift
 
 local ok, bit = pcall(require, 'bit')
@@ -78,7 +97,7 @@ else
 
     bit_not = function(n)
       local tbl = to_bits(n)
-      local size = math.max(#tbl, 32)
+      local size = math_max(#tbl, 32)
       for i = 1, size do
         if(tbl[i] == 1) then
           tbl[i] = 0
@@ -168,7 +187,7 @@ else
         high_bit = 0x80000000
       end
 
-      local floor = math.floor
+      local floor = math_floor
 
       for i=1, bits do
         n = n/2
@@ -220,7 +239,7 @@ local function cut_le_str(s,...)
   local o, r = 1, {}
   local args = {...}
   for i=1, #args do
-    table.insert(r, str2lei(sub(s, o, o + args[i] - 1)))
+    table_insert(r, str2lei(sub(s, o, o + args[i] - 1)))
     o = o + args[i]
   end
   return r
@@ -365,7 +384,7 @@ function md5.sumhexa(s)
   for i=1,#s,64 do
     local X = cut_le_str(sub(s,i,i+63),4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4)
     assert(#X == 16)
-    X[0] = table.remove(X,1) -- zero based!
+    X[0] = table_remove(X,1) -- zero based!
     a,b,c,d = transform(a,b,c,d,X)
   end
 
@@ -377,3 +396,4 @@ function md5.sum(s)
 end
 
 return md5
+

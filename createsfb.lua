@@ -1,168 +1,187 @@
-﻿--[[
-sfb縺ｨ縺ｯ
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
+--[[
+sfb邵ｺ・ｨ邵ｺ・ｯ
 
 
-繧｢繝ｼ繧ｫ繧､繝悶ヵ繧｡繧､繝ｫ縺ｯ谺｡縺ｮ3縺､縺ｮ驛ｨ蛻・〒讒区・縺励∪縺吶・
+郢ｧ・｢郢晢ｽｼ郢ｧ・ｫ郢ｧ・､郢晄じ繝ｵ郢ｧ・｡郢ｧ・､郢晢ｽｫ邵ｺ・ｯ隹ｺ・｡邵ｺ・ｮ3邵ｺ・､邵ｺ・ｮ鬩幢ｽｨ陋ｻ繝ｻ縲定ｮ貞玄繝ｻ邵ｺ蜉ｱ竏ｪ邵ｺ蜷ｶﾂ繝ｻ
 
 HEADER
 INDEX
 DATA
 
-縺昴ｌ縺槭ｌ縺ｮ蠖ｹ蜑ｲ縺ｯ谺｡縺ｮ騾壹ｊ縺ｧ縺吶・
+邵ｺ譏ｴ・檎ｸｺ讒ｭ・檎ｸｺ・ｮ陟厄ｽｹ陷托ｽｲ邵ｺ・ｯ隹ｺ・｡邵ｺ・ｮ鬨ｾ螢ｹ・顔ｸｺ・ｧ邵ｺ蜷ｶﾂ繝ｻ
 
-HEADER・医・繝・ム・・
+HEADER繝ｻ蛹ｻ繝ｻ郢昴・繝繝ｻ繝ｻ
 
-繝輔ぃ繧､繝ｫ縺ｮ遞ｮ鬘槭ｄ蝓ｺ譛ｬ諠・ｱ繧呈嶌縺阪∪縺吶・
+郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ邵ｺ・ｮ驕橸ｽｮ鬯俶ｧｭ・・搏・ｺ隴幢ｽｬ隲繝ｻ・ｰ・ｱ郢ｧ蜻亥ｶ檎ｸｺ髦ｪ竏ｪ邵ｺ蜷ｶﾂ繝ｻ
 
-萓・
+關薙・
 
 magic
 version
 fileCount
 
-蠖ｹ蜑ｲ・・
+陟厄ｽｹ陷托ｽｲ繝ｻ繝ｻ
 
-縺薙・繝輔ぃ繧､繝ｫ縺瑚・蛻・・繝輔か繝ｼ繝槭ャ繝医°遒ｺ隱阪☆繧・
+邵ｺ阮吶・郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ邵ｺ迹壹・陋ｻ繝ｻ繝ｻ郢晁ｼ斐°郢晢ｽｼ郢晄ｧｭ繝｣郢晏現ﾂｰ驕抵ｽｺ髫ｱ髦ｪ笘・ｹｧ繝ｻ
 
-菴募九ヵ繧｡繧､繝ｫ縺悟・縺｣縺ｦ縺・ｋ縺狗衍繧・
+闖ｴ蜍淞荵昴Ψ郢ｧ・｡郢ｧ・､郢晢ｽｫ邵ｺ謔溘・邵ｺ・｣邵ｺ・ｦ邵ｺ繝ｻ・狗ｸｺ迢苓｡咲ｹｧ繝ｻ
 
-萓九∴縺ｰ
+關謎ｹ昶斡邵ｺ・ｰ
 
 KBA1
 
-縺ｨ縺・≧譁・ｭ励ｒ譛蛻昴↓鄂ｮ縺上→
-縲後％繧後・KBA繧｢繝ｼ繧ｫ繧､繝悶□縲阪→蛻・°繧翫∪縺吶・
+邵ｺ・ｨ邵ｺ繝ｻ竕ｧ隴√・・ｭ蜉ｱ・定ｭ崢陋ｻ譏ｴ竊馴р・ｮ邵ｺ荳岩・
+邵ｲ蠕鯉ｼ・ｹｧ蠕後・KBA郢ｧ・｢郢晢ｽｼ郢ｧ・ｫ郢ｧ・､郢晄じ笆｡邵ｲ髦ｪ竊定崕繝ｻﾂｰ郢ｧ鄙ｫ竏ｪ邵ｺ蜷ｶﾂ繝ｻ
 
-INDEX・医う繝ｳ繝・ャ繧ｯ繧ｹ・・
+INDEX繝ｻ蛹ｻ縺・ｹ晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ繝ｻ繝ｻ
 
-繧､繝ｳ繝・ャ繧ｯ繧ｹ縺ｯ 逶ｮ谺｡縺ｧ縺吶・
-縺薙％縺ｫ縲後←縺ｮ繝輔ぃ繧､繝ｫ縺後←縺薙↓縺ゅｋ縺九阪ｒ譖ｸ縺阪∪縺吶・
+郢ｧ・､郢晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ邵ｺ・ｯ 騾ｶ・ｮ隹ｺ・｡邵ｺ・ｧ邵ｺ蜷ｶﾂ繝ｻ
+邵ｺ阮呻ｼ・ｸｺ・ｫ邵ｲ蠕娯・邵ｺ・ｮ郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ邵ｺ蠕娯・邵ｺ阮吮・邵ｺ繧・ｽ狗ｸｺ荵敖髦ｪ・定ｭ厄ｽｸ邵ｺ髦ｪ竏ｪ邵ｺ蜷ｶﾂ繝ｻ
 
-蜷・ヵ繧｡繧､繝ｫ縺ｫ縺､縺・※谺｡縺ｮ諠・ｱ繧呈戟縺｡縺ｾ縺吶・
+陷ｷ繝ｻ繝ｵ郢ｧ・｡郢ｧ・､郢晢ｽｫ邵ｺ・ｫ邵ｺ・､邵ｺ繝ｻ窶ｻ隹ｺ・｡邵ｺ・ｮ隲繝ｻ・ｰ・ｱ郢ｧ蜻域亜邵ｺ・｡邵ｺ・ｾ邵ｺ蜷ｶﾂ繝ｻ
 
 fileName
 offset
 size
 
-諢丞袖・・
+隲｢荳櫁｢悶・繝ｻ
 
-諠・ｱ    諢丞袖
-fileName    繝輔ぃ繧､繝ｫ蜷・
-offset  繝・・繧ｿ縺ｮ髢句ｧ倶ｽ咲ｽｮ
-size    繝・・繧ｿ繧ｵ繧､繧ｺ
+隲繝ｻ・ｰ・ｱ    隲｢荳櫁｢・
+fileName    郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ陷ｷ繝ｻ
+offset  郢昴・繝ｻ郢ｧ邵ｺ・ｮ鬮｢蜿･・ｧ蛟ｶ・ｽ蜥ｲ・ｽ・ｮ
+size    郢昴・繝ｻ郢ｧ郢ｧ・ｵ郢ｧ・､郢ｧ・ｺ
 
-萓・
+關薙・
 
 chart.bin offset=120 size=200
 song.ogg offset=320 size=2000000
 bg.png offset=2000320 size=400000
-DATA・医ョ繝ｼ繧ｿ・・
+DATA繝ｻ蛹ｻ繝ｧ郢晢ｽｼ郢ｧ繝ｻ繝ｻ
 
-縺薙％縺ｫ縺ｯ 螳滄圀縺ｮ繝輔ぃ繧､繝ｫ蜀・ｮｹ繧偵◎縺ｮ縺ｾ縺ｾ蜈･繧後∪縺吶・
+邵ｺ阮呻ｼ・ｸｺ・ｫ邵ｺ・ｯ 陞ｳ貊・怙邵ｺ・ｮ郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ陷繝ｻ・ｮ・ｹ郢ｧ蛛ｵ笳守ｸｺ・ｮ邵ｺ・ｾ邵ｺ・ｾ陷茨ｽ･郢ｧ蠕娯穐邵ｺ蜷ｶﾂ繝ｻ
 
-chart.bin 縺ｮ荳ｭ霄ｫ
-song.ogg 縺ｮ荳ｭ霄ｫ
-bg.png 縺ｮ荳ｭ霄ｫ
+chart.bin 邵ｺ・ｮ闕ｳ・ｭ髴・ｽｫ
+song.ogg 邵ｺ・ｮ闕ｳ・ｭ髴・ｽｫ
+bg.png 邵ｺ・ｮ闕ｳ・ｭ髴・ｽｫ
 
-縺溘□蜊倥↓ 鬆・分縺ｫ荳ｦ縺ｹ繧九□縺代〒縺吶・
+邵ｺ貅倪味陷雁･竊・鬯・・蛻・ｸｺ・ｫ闕ｳ・ｦ邵ｺ・ｹ郢ｧ荵昶味邵ｺ莉｣縲堤ｸｺ蜷ｶﾂ繝ｻ
 
-2. offset・井ｽ咲ｽｮ・峨・閠・∴譁ｹ
+2. offset繝ｻ莠包ｽｽ蜥ｲ・ｽ・ｮ繝ｻ蟲ｨ繝ｻ髢繝ｻ竏ｴ隴・ｽｹ
 
-繝輔ぃ繧､繝ｫ縺ｯ 繝舌う繝亥・縺ｧ縺吶・
+郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ邵ｺ・ｯ 郢晁・縺・ｹ昜ｺ･繝ｻ邵ｺ・ｧ邵ｺ蜷ｶﾂ繝ｻ
 
-萓九∴縺ｰ
+關謎ｹ昶斡邵ｺ・ｰ
 
 ABCDE
 
-縺ｪ繧・
+邵ｺ・ｪ郢ｧ繝ｻ
 
-菴咲ｽｮ    譁・ｭ・
+闖ｴ蜥ｲ・ｽ・ｮ    隴√・・ｭ繝ｻ
 -- 0   A
 1   B
 2   C
 3   D
 4   E
 
-縺薙・ 菴咲ｽｮ逡ｪ蜿ｷ縺・offset 縺ｧ縺吶・
+邵ｺ阮吶・ 闖ｴ蜥ｲ・ｽ・ｮ騾｡・ｪ陷ｿ・ｷ邵ｺ繝ｻoffset 邵ｺ・ｧ邵ｺ蜷ｶﾂ繝ｻ
 
-縺､縺ｾ繧・
+邵ｺ・､邵ｺ・ｾ郢ｧ繝ｻ
 
-offset = 繝輔ぃ繧､繝ｫ縺ｮ菴輔ヰ繧､繝育岼縺・
+offset = 郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ邵ｺ・ｮ闖ｴ霈斐Σ郢ｧ・､郢晁ご蟯ｼ邵ｺ繝ｻ
 
 
-3. 繧｢繝ｼ繧ｫ繧､繝悶・菴懈・謇矩・
+3. 郢ｧ・｢郢晢ｽｼ郢ｧ・ｫ郢ｧ・､郢晄じ繝ｻ闖ｴ諛医・隰・洸・ｰ繝ｻ
 
-繧｢繝ｼ繧ｫ繧､繝悶ｒ菴懊ｋ縺ｨ縺阪・谺｡縺ｮ鬆・分縺ｫ縺ｪ繧翫∪縺吶・
+郢ｧ・｢郢晢ｽｼ郢ｧ・ｫ郢ｧ・､郢晄じ・定抄諛奇ｽ狗ｸｺ・ｨ邵ｺ髦ｪ繝ｻ隹ｺ・｡邵ｺ・ｮ鬯・・蛻・ｸｺ・ｫ邵ｺ・ｪ郢ｧ鄙ｫ竏ｪ邵ｺ蜷ｶﾂ繝ｻ
 
-竭 蜈･繧後ｋ繝輔ぃ繧､繝ｫ繧呈ｱｺ繧√ｋ
+遶ｭ・ｰ 陷茨ｽ･郢ｧ蠕鯉ｽ狗ｹ晁ｼ斐＜郢ｧ・､郢晢ｽｫ郢ｧ蜻茨ｽｱ・ｺ郢ｧ竏夲ｽ・
 
-萓・
+關薙・
 
 chart.txt
 song.ogg
 bg.png
-竭｡ 繝・・繧ｿ繧ｵ繧､繧ｺ繧定ｪｿ縺ｹ繧・
+遶ｭ・｡ 郢昴・繝ｻ郢ｧ郢ｧ・ｵ郢ｧ・､郢ｧ・ｺ郢ｧ螳夲ｽｪ邵ｺ・ｹ郢ｧ繝ｻ
 chart.txt = 200 bytes
 song.ogg = 2,000,000 bytes
 bg.png = 400,000 bytes
-竭｢ offset繧呈ｱｺ繧√ｋ
+遶ｭ・｢ offset郢ｧ蜻茨ｽｱ・ｺ郢ｧ竏夲ｽ・
 
-莉ｮ縺ｫ
+闔会ｽｮ邵ｺ・ｫ
 
 HEADER + INDEX = 120 bytes
 
-縺ｪ繧・
+邵ｺ・ｪ郢ｧ繝ｻ
 
 chart.txt offset = 120
 song.ogg offset = 320
 bg.png offset = 2000320
-竭｣ INDEX繧呈嶌縺・
+遶ｭ・｣ INDEX郢ｧ蜻亥ｶ檎ｸｺ繝ｻ
 chart.txt 120 200
 song.ogg 320 2000000
 bg.png 2000320 400000
-竭､ DATA繧呈嶌縺・
-chart.txt縺ｮ荳ｭ霄ｫ
-song.ogg縺ｮ荳ｭ霄ｫ
-bg.png縺ｮ荳ｭ霄ｫ
-4. 隱ｭ縺ｿ霎ｼ縺ｿ縺ｮ莉慕ｵ・∩
+遶ｭ・､ DATA郢ｧ蜻亥ｶ檎ｸｺ繝ｻ
+chart.txt邵ｺ・ｮ闕ｳ・ｭ髴・ｽｫ
+song.ogg邵ｺ・ｮ闕ｳ・ｭ髴・ｽｫ
+bg.png邵ｺ・ｮ闕ｳ・ｭ髴・ｽｫ
+4. 髫ｱ・ｭ邵ｺ髴趣ｽｼ邵ｺ邵ｺ・ｮ闔画・・ｵ繝ｻ竏ｩ
 
-繧ｲ繝ｼ繝蛛ｴ縺ｯ谺｡縺ｮ鬆・分縺ｧ隱ｭ縺ｿ縺ｾ縺吶・
+郢ｧ・ｲ郢晢ｽｼ郢晢｣ｰ陋幢ｽｴ邵ｺ・ｯ隹ｺ・｡邵ｺ・ｮ鬯・・蛻・ｸｺ・ｧ髫ｱ・ｭ邵ｺ邵ｺ・ｾ邵ｺ蜷ｶﾂ繝ｻ
 
-竭 HEADER繧定ｪｭ繧
+遶ｭ・ｰ HEADER郢ｧ螳夲ｽｪ・ｭ郢ｧﾂ
 magic
 fileCount
-竭｡ INDEX繧定ｪｭ繧
+遶ｭ・｡ INDEX郢ｧ螳夲ｽｪ・ｭ郢ｧﾂ
 
-繧､繝ｳ繝・ャ繧ｯ繧ｹ繧貞・驛ｨ繝｡繝｢繝ｪ縺ｫ菫晏ｭ倥＠縺ｾ縺吶・
+郢ｧ・､郢晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ郢ｧ雋槭・鬩幢ｽｨ郢晢ｽ｡郢晢ｽ｢郢晢ｽｪ邵ｺ・ｫ闖ｫ譎擾ｽｭ蛟･・邵ｺ・ｾ邵ｺ蜷ｶﾂ繝ｻ
 
-萓・
+關薙・
 
 chart.txt -> offset 120 size 200
 song.ogg -> offset 320 size 2000000
-竭｢ 蠢・ｦ√↑繝・・繧ｿ縺縺題ｪｭ繧
+遶ｭ・｢ 陟｢繝ｻ・ｦ竏壺・郢昴・繝ｻ郢ｧ邵ｺ・ｰ邵ｺ鬘鯉ｽｪ・ｭ郢ｧﾂ
 
-萓九∴縺ｰ
+關謎ｹ昶斡邵ｺ・ｰ
 
 chart.txt
 
-繧定ｪｭ繧縺ｨ縺・
+郢ｧ螳夲ｽｪ・ｭ郢ｧﾂ邵ｺ・ｨ邵ｺ繝ｻ
 
-繝輔ぃ繧､繝ｫ菴咲ｽｮ = 120
-繧ｵ繧､繧ｺ = 200
+郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ闖ｴ蜥ｲ・ｽ・ｮ = 120
+郢ｧ・ｵ郢ｧ・､郢ｧ・ｺ = 200
 
-縺ｪ縺ｮ縺ｧ
+邵ｺ・ｪ邵ｺ・ｮ邵ｺ・ｧ
 
-120縲・20繝舌う繝・
+120邵ｲ繝ｻ20郢晁・縺・ｹ昴・
 
-繧定ｪｭ縺ｿ縺ｾ縺吶・
-
-
+郢ｧ螳夲ｽｪ・ｭ邵ｺ邵ｺ・ｾ邵ｺ蜷ｶﾂ繝ｻ
 
 
-notedata縺ｮ讒矩
+
+
+notedata邵ｺ・ｮ隶堤洸ﾂ・ｰ
 notedata = {
     easy = {
-        [1]縺ｨ縺ｯ縲・蟆冗ｯ逶ｮ縺ｮ縺薙→
+        [1]邵ｺ・ｨ邵ｺ・ｯ邵ｲ繝ｻ陝・・・ｯﾂ騾ｶ・ｮ邵ｺ・ｮ邵ｺ阮吮・
         [1] = {
             action="...",
             measure={4,4},
@@ -176,7 +195,7 @@ notedata = {
 }
 
 
-starttiming縺ｮ讒矩
+starttiming邵ｺ・ｮ隶堤洸ﾂ・ｰ
 {
     easy = {measure={},bpm={},hs={},scrollmove={},move={},gogostart={},gogoend={},gravity={}},
     normal = {measure={},bpm={},hs={},scrollmove={},move={},gogostart={},gogoend={},gravity={}},
@@ -187,8 +206,8 @@ starttiming縺ｮ讒矩
 
 
 
-chart.bin縺ｮ讒矩
--- chart.bin 縺ｮ荳ｭ霄ｫ・域枚蟄怜・縺ｨ縺励※菫晏ｭ假ｼ・
+chart.bin邵ｺ・ｮ隶堤洸ﾂ・ｰ
+-- chart.bin 邵ｺ・ｮ闕ｳ・ｭ髴・ｽｫ繝ｻ蝓滓椢陝・懊・邵ｺ・ｨ邵ｺ蜉ｱ窶ｻ闖ｫ譎擾ｽｭ蛛・ｽｼ繝ｻ
 return {
   meta = {
     title = "Sample Song",
@@ -242,7 +261,7 @@ return {
   actions = {
     easy = {
       {time = 0.000, type = "BPM", measure = 1, args = {180}},
-      {time = 16.000, type = "Lyric", measure = 2, text = 縺ゅ≠縺・, offset = 0.5}
+      {time = 16.000, type = "Lyric", measure = 2, text = 邵ｺ繧・旺邵ｺ繝ｻ, offset = 0.5}
     },
     normal = {},
     hard = {},
@@ -260,7 +279,7 @@ local createsfb = {}
 
 local log = require("log")
 
--- readFile: love.filesystem.read のフォールバックとしてファイルを直接読む
+-- readFile: love.filesystem.read 縺ｮ繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ縺ｨ縺励※繝輔ぃ繧､繝ｫ繧堤峩謗･隱ｭ繧
 local function readFile(path)
     local ok, data = pcall(love.filesystem.read, path)
     if ok and type(data) == "string" and data ~= "" then
@@ -523,7 +542,7 @@ local function extractSflDiffBlocks(data)
         end
 
         local body = data:sub(braceStart + 1, bodyEnd - 1)
-        table.insert(blocks, {header = trimString(header), body = trimString(body)})
+        table_insert(blocks, {header = trimString(header), body = trimString(body)})
         pos = bodyEnd + 1
     end
 
@@ -597,7 +616,7 @@ local function parseSflDiffs(data)
     for _, blockInfo in ipairs(blocks) do
         local idxNum = parseDiffHeader(blockInfo.header)
         if idxNum then
-            table.insert(indices, idxNum)
+            table_insert(indices, idxNum)
         end
     end
     if #indices == 0 then
@@ -605,11 +624,11 @@ local function parseSflDiffs(data)
         for idx, _ in string.gmatch(data, 'diff%s*%(%s*([0-9]+)%s*,%s*([0-9%.]+)') do
             local idxNum = tonumber(idx)
             if idxNum then
-                table.insert(indices, idxNum)
+                table_insert(indices, idxNum)
             end
         end
     end
-    log.trace("  parseSflDiffs: Found diff indices: " .. table.concat(indices, ", "))
+    log.trace("  parseSflDiffs: Found diff indices: " .. table_concat(indices, ", "))
 
     local zeroBased = false
     local oneBased = false
@@ -671,7 +690,7 @@ local function parseSflLaneNotes(text)
     end
 
     local measureNum = 0
-    local currentGravity = 1  -- 現在の重力方向
+    local currentGravity = 1  -- 迴ｾ蝨ｨ縺ｮ驥榊鴨譁ｹ蜷・
     local fullWidthHash = "\239\188\131" -- UTF-8 for U+FF03
     local normalized = text
     if normalized:sub(-1) ~= ";" then
@@ -765,7 +784,7 @@ local function basicSerialize(t)
         if type(v) == "table" then
             return basicSerialize(v)
         elseif type(v) == "string" then
-            return string.format("%q", v)
+            return string_format("%q", v)
         end
         return tostring(v)
     end
@@ -774,11 +793,11 @@ local function basicSerialize(t)
     local partsCount = 0
     for k, v in pairs(t) do
         partsCount = partsCount + 1
-        local key = (type(k) == "string") and string.format("[%q]", k) or string.format("[%d]", k)
+        local key = (type(k) == "string") and string_format("[%q]", k) or string_format("[%d]", k)
         parts[partsCount] = key .. "=" .. serializeValue(v)
     end
 
-    return "{" .. table.concat(parts, ",") .. "}"
+    return "{" .. table_concat(parts, ",") .. "}"
 end
 
 local function buildDirectCollectionsFromSongs()
@@ -882,7 +901,9 @@ function createsfb.load(opts)
         return nil
     end
 
-    log.info(string.format(
+    loadedCollections = loadedCollections or {audio = {}, charts = {}, images = {}}
+
+    log.info(string_format(
         "createsfb.load(): direct collections audio=%d charts=%d images=%d",
         #(loadedCollections.audio or {}),
         #(loadedCollections.charts or {}),
@@ -938,28 +959,36 @@ end
 
 
 function loadsflfile()
+    if type(sflpath) ~= "table" or #sflpath == 0 then
+        log.warn("loadsflfile: no sflpath available")
+        return
+    end
 
-    for i = 1,#sflpath do
+    for i = 1, #sflpath do
 
         local data = readFile(sflpath[i])
 
         sflmeta[i] = {}
         sfldiff[i] = {}
 
-        sflmeta[i].title,
-        sflmeta[i].musicfile,
-        sflmeta[i].bpm =
-        data:match('meta%("([^"]+)",([^,]+),([^%)]+)%)')
-        sflmeta[i].url = data:match('url%("([^"]+)"%)')
-        sflmeta[i].artist = data:match('artist%("([^"]+)"%)')
-        sflmeta[i].offset = data:match('offset%(([^%)]+)%)')
-        sflmeta[i].volume = data:match('volume%(([^%)]+)%)')
-        sflmeta[i].demostart = data:match('demostart%(([^%)]+)%)')
-        sflmeta[i].demoend = data:match('demoend%(([^%)]+)%)')
-        sflmeta[i].genre = parseGenresFromSfl(data)
+        local parsedSfldiff, parsedSfllevel = nil, nil
+        if type(data) == "string" then
+            sflmeta[i].title,
+            sflmeta[i].musicfile,
+            sflmeta[i].bpm =
+            data:match('meta%("([^"]+)",([^,]+),([^%)]+)%)')
+            sflmeta[i].url = data:match('url%("([^"]+)"%)')
+            sflmeta[i].artist = data:match('artist%("([^"]+)"%)')
+            sflmeta[i].offset = data:match('offset%(([^%)]+)%)')
+            sflmeta[i].volume = data:match('volume%(([^%)]+)%)')
+            sflmeta[i].demostart = data:match('demostart%(([^%)]+)%)')
+            sflmeta[i].demoend = data:match('demoend%(([^%)]+)%)')
+            sflmeta[i].genre = parseGenresFromSfl(data)
 
-        local parsedSfldiff, parsedSfllevel = parseSflDiffs(data)
+            parsedSfldiff, parsedSfllevel = parseSflDiffs(data)
+        end
 
+        parsedSfllevel = parsedSfllevel or {}
         sfldiff[i] = parsedSfldiff
 
         sfllevel[i] = {}
@@ -981,9 +1010,14 @@ end
 
 function createnotedata()
 
+    if type(sflpath) ~= "table" or #sflpath == 0 then
+        log.warn("createnotedata: no sflpath available")
+        return
+    end
+
     loadsflfile()
 
-    for i=1,#sflpath do
+    for i = 1, #sflpath do
 
         for _,diff in ipairs(diffs) do
 
@@ -1001,13 +1035,18 @@ end
 
 function analysissfl()
 
+    if type(sflpath) ~= "table" or #sflpath == 0 then
+        log.warn("analysissfl: no sflpath available")
+        return
+    end
+
     createnotedata()
 
     local function parseNotes(text)
         return parseSflLaneNotes(text)
     end
 
-    for i=1,#sflpath do
+    for i = 1, #sflpath do
 
         for _,diff in ipairs(diffs) do
 
@@ -1044,7 +1083,7 @@ function analysissfl()
 
                 for scroll,speed,timing,easing in actiontext:gmatch("#ScrollMove%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)") do
 
-                    table.insert(data.scrollmove,{
+                    table_insert(data.scrollmove,{
                         scroll = tonumber(scroll),
                         speed = tonumber(speed),
                         timing = tonumber(timing),
@@ -1055,7 +1094,7 @@ function analysissfl()
 
                 for note,from,to,timing,easing in actiontext:gmatch("#Move%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)") do
 
-                    table.insert(data.move,{
+                    table_insert(data.move,{
                         note = tonumber(note),
                         from = tonumber(from),
                         to = tonumber(to),
@@ -1089,9 +1128,14 @@ end
 
 function loadaction()
 
+    if type(sflpath) ~= "table" or #sflpath == 0 then
+        log.warn("loadaction: no sflpath available")
+        return
+    end
+
     analysissfl()
 
-    for i=1,#sflpath do
+    for i = 1, #sflpath do
 
         for _,diff in ipairs(diffs) do
 
@@ -1100,35 +1144,35 @@ function loadaction()
             if data then
 
                 if data.measure then
-                    table.insert(starttiming[diff].measure,{i,data.measure})
+                    table_insert(starttiming[diff].measure,{i,data.measure})
                 end
 
                 if data.bpm then
-                    table.insert(starttiming[diff].bpm,{i,data.bpm})
+                    table_insert(starttiming[diff].bpm,{i,data.bpm})
                 end
 
                 if data.hs then
-                    table.insert(starttiming[diff].hs,{i,data.hs})
+                    table_insert(starttiming[diff].hs,{i,data.hs})
                 end
 
                 if #data.scrollmove > 0 then
-                    table.insert(starttiming[diff].scrollmove,{i,data.scrollmove})
+                    table_insert(starttiming[diff].scrollmove,{i,data.scrollmove})
                 end
 
                 if #data.move > 0 then
-                    table.insert(starttiming[diff].move,{i,data.move})
+                    table_insert(starttiming[diff].move,{i,data.move})
                 end
 
                 if data.gogostart then
-                    table.insert(starttiming[diff].gogostart,{i,true})
+                    table_insert(starttiming[diff].gogostart,{i,true})
                 end
 
                 if data.gogoend then
-                    table.insert(starttiming[diff].gogoend,{i,true})
+                    table_insert(starttiming[diff].gogoend,{i,true})
                 end
 
                 if data.gravity then
-                    table.insert(starttiming[diff].gravity,{i,data.gravity})
+                    table_insert(starttiming[diff].gravity,{i,data.gravity})
                 end
 
             end
@@ -1143,11 +1187,16 @@ end
 
 function calculationmeasuretime()
 
+    if type(sflpath) ~= "table" or #sflpath == 0 then
+        log.warn("calculationmeasuretime: no sflpath available")
+        return
+    end
+
     loadaction()
 
-    for _,diff in ipairs(diffs) do
+    for _, diff in ipairs(diffs) do
 
-        for i=1,#sflpath do
+        for i = 1, #sflpath do
 
             local data = notedata[diff][i]
 
@@ -1171,17 +1220,24 @@ function calculationmeasuretime()
 end
 
 
--- (荳ｭ逡･: writeU8, writeU32 縺ｪ縺ｩ縺ｮ陬懷勧髢｢謨ｰ繧・notedata 遲峨・螟画焚螳夂ｾｩ縺ｯ縺昴・縺ｾ縺ｾ)
+-- (闕ｳ・ｭ騾｡・･: writeU8, writeU32 邵ｺ・ｪ邵ｺ・ｩ邵ｺ・ｮ髯ｬ諛ｷ蜍ｧ鬮｢・｢隰ｨ・ｰ郢ｧ繝ｻnotedata 驕ｲ蟲ｨ繝ｻ陞溽判辟夊楜螟ゑｽｾ・ｩ邵ｺ・ｯ邵ｺ譏ｴ繝ｻ邵ｺ・ｾ邵ｺ・ｾ)
 
--- 繝ｫ繝ｼ繝怜・縺ｧ螳牙・縺ｫ螳溯｡後〒縺阪ｋ繧医≧縺ｫ縲∬ｧ｣譫仙・逅・ｒ縲後う繝ｳ繝・ャ繧ｯ繧ｹ i縲阪↓蟇ｾ蠢懊＆縺帙∪縺・
+-- 郢晢ｽｫ郢晢ｽｼ郢晄懊・邵ｺ・ｧ陞ｳ迚吶・邵ｺ・ｫ陞ｳ貅ｯ・｡蠕後堤ｸｺ髦ｪ・狗ｹｧ蛹ｻ竕ｧ邵ｺ・ｫ邵ｲ竏ｬ・ｧ・｣隴ｫ莉吶・騾・・・堤ｸｲ蠕後≧郢晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ i邵ｲ髦ｪ竊楢汞・ｾ陟｢諛奇ｼ・ｸｺ蟶吮穐邵ｺ繝ｻ
 function loadsflfile_indexed(i)
+    if type(sflpath) ~= "table" or not sflpath[i] then
+        log.warn("loadsflfile_indexed: invalid index or sflpath")
+        return
+    end
+
     local data = readFile(sflpath[i])
     if not data then return end
 
     sflmeta[i] = {}
     sfldiff[i] = {}
 
-    sflmeta[i].title,
+local parsedSfldiff, parsedSfllevel = nil, nil
+
+        sflmeta[i].title,
     sflmeta[i].musicfile,
     sflmeta[i].bpm =
     data:match('meta%("([^"]+)",([^,]+),([^%)]+)%)')
@@ -1215,9 +1271,13 @@ end
 diffs = {"easy","normal","hard","extra","custom"}
 
 ------------------------------------------------
--- 隴憺擇隗｣譫・
+-- 髫ｴ諞ｺ謫・囓・｣隴ｫ繝ｻ
 ------------------------------------------------
 function analyze_single_song(i)
+    if type(sflpath) ~= "table" or not sflpath[i] then
+        log.warn("analyze_single_song: invalid index or missing sflpath[" .. tostring(i) .. "]")
+        return
+    end
 
     loadsflfile_indexed(i)
     
@@ -1280,19 +1340,19 @@ function analyze_single_song(i)
             end
 
             if data.measure then
-                table.insert(starttiming[diff].measure,{i,data.measure})
+                table_insert(starttiming[diff].measure,{i,data.measure})
             end
 
             if data.bpm then
-                table.insert(starttiming[diff].bpm,{i,data.bpm})
+                table_insert(starttiming[diff].bpm,{i,data.bpm})
             end
 
             if data.hs then
-                table.insert(starttiming[diff].hs,{i,data.hs})
+                table_insert(starttiming[diff].hs,{i,data.hs})
             end
 
             if data.gravity then
-                table.insert(starttiming[diff].gravity,{i,data.gravity})
+                table_insert(starttiming[diff].gravity,{i,data.gravity})
             end
 
             if data.measure then
@@ -1320,7 +1380,7 @@ end
 
 
 ------------------------------------------------
--- chart.bin菴懈・
+-- chart.bin闖ｴ諛医・
 ------------------------------------------------
 local function trimLine(line)
     return (line:gsub("^%s+", ""):gsub("%s+$", ""))
@@ -1422,11 +1482,11 @@ local function parseActionEvents(actionText, measures)
                             local args = {}
                             for token in rest:gmatch("[^%s]+") do
                                 local num = tonumber(token)
-                                table.insert(args, num ~= nil and num or token)
+                                table_insert(args, num ~= nil and num or token)
                             end
                             event.args = args
                         end
-                        table.insert(events, event)
+                        table_insert(events, event)
                     end
                 end
             end
@@ -1465,7 +1525,7 @@ end
 
 local function secToMs(sec)
     local n = tonumber(sec) or 0
-    return math.floor(n * 1000 + 0.5)
+    return math_floor(n * 1000 + 0.5)
 end
 
 function createchartbin(i)
@@ -1514,9 +1574,9 @@ function createchartbin(i)
     }
 
     ------------------------------------------------
-    -- LANE縺斐→縺ｮ遘貞腰菴阪ヮ繝ｼ繝・
+    -- LANE邵ｺ譁絶・邵ｺ・ｮ驕倩ｲ櫁・闖ｴ髦ｪ繝ｮ郢晢ｽｼ郢昴・
     ------------------------------------------------
-    -- 繝ｬ繝吶Ν蛻･縺ｫ繝ｬ繝ｼ繝ｳ繧ｿ繧､繝溘Φ繧ｰ繧帝寔險・
+    -- 郢晢ｽｬ郢晏生ﾎ晁崕・･邵ｺ・ｫ郢晢ｽｬ郢晢ｽｼ郢晢ｽｳ郢ｧ郢ｧ・､郢晄ｺ佩ｦ郢ｧ・ｰ郢ｧ蟶晏ｯ秘坎繝ｻ
     local laneTiming = {}
     local measureTimeline = {}
     local actionsByDiff = {}
@@ -1543,7 +1603,7 @@ function createchartbin(i)
                 local lane = tonumber(note.lane) or note.lane
                 local sec  = 0
 
-                -- 蟆冗ｯ譎る俣 * 蟆冗ｯ蜀・ｽ咲ｽｮ縺ｧ遘呈鋤邂・
+                -- 陝・・・ｯﾂ隴弱ｋ菫｣ * 陝・・・ｯﾂ陷繝ｻ・ｽ蜥ｲ・ｽ・ｮ邵ｺ・ｧ驕伜争驪､驍ゅ・
                 local m = measureTimeline[diff] and measureTimeline[diff][note.measure]
                 if m then
                     sec = (m.start or 0) + (note.pos or 0) * (m.duration or 0)
@@ -1563,7 +1623,7 @@ function createchartbin(i)
         end
     end
 
-    -- 蜷・Ξ繝ｼ繝ｳ縺ｧ譎る俣鬆・た繝ｼ繝茨ｼ磯屮譏灘ｺｦ縺斐→・・
+    -- 陷ｷ繝ｻﾎ樒ｹ晢ｽｼ郢晢ｽｳ邵ｺ・ｧ隴弱ｋ菫｣鬯・・縺溽ｹ晢ｽｼ郢晁肩・ｼ逎ｯ螻ｮ隴冗§・ｺ・ｦ邵ｺ譁絶・繝ｻ繝ｻ
     for _, diff in ipairs(diffs) do
         for lane, notes in pairs(laneTiming[diff]) do
             table.sort(notes, function(a,b) return (a.timeMs or 0) < (b.timeMs or 0) end)
@@ -1572,7 +1632,7 @@ function createchartbin(i)
 
     chart.lanes = laneTiming
 
-    -- Create unified notes format with lane information (秒数とlaneをテーブル化)
+    -- Create unified notes format with lane information (遘呈焚縺ｨlane繧偵ユ繝ｼ繝悶Ν蛹・
     local notes = {}
     for _, diff in ipairs(diffs) do
         notes[diff] = {}
@@ -1592,7 +1652,7 @@ function createchartbin(i)
     end
     chart.notes = notes
 
-    -- 蜷・Ξ繝ｼ繝ｳ縺斐→縺ｫ繝弱・繝・・譎る俣繧偵Α繝ｪ遘偵〒繧ｫ繝ｳ繝槫玄蛻・ｊ譁・ｭ怜・縺ｫ螟画鋤・磯屮譏灘ｺｦ縺斐→・・
+    -- 陷ｷ繝ｻﾎ樒ｹ晢ｽｼ郢晢ｽｳ邵ｺ譁絶・邵ｺ・ｫ郢晏ｼｱ繝ｻ郢昴・繝ｻ隴弱ｋ菫｣郢ｧ蛛ｵﾎ醍ｹ晢ｽｪ驕伜・縲堤ｹｧ・ｫ郢晢ｽｳ郢晄ｧｫ邇・崕繝ｻ・願ｭ√・・ｭ諤懊・邵ｺ・ｫ陞溽判驪､繝ｻ逎ｯ螻ｮ隴冗§・ｺ・ｦ邵ｺ譁絶・繝ｻ繝ｻ
     local laneTimes = {}
     local laneNumbers = {}
     for _, diff in ipairs(diffs) do
@@ -1611,7 +1671,7 @@ function createchartbin(i)
                 numeric.types[timesCount] = noteType
                 numeric.pairs[timesCount] = {noteMs, noteType}
             end
-            laneTimes[diff][lane] = table.concat(times, ",")
+            laneTimes[diff][lane] = table_concat(times, ",")
             laneNumbers[diff][lane] = numeric
         end
     end
@@ -1636,7 +1696,7 @@ end
 
 
 ------------------------------------------------
--- SFB菴懈・
+-- SFB闖ｴ諛医・
 ------------------------------------------------
 function createsfbfile(opts)
     opts = opts or {}
@@ -1695,37 +1755,37 @@ function createsfbfile(opts)
         end
 
         ------------------------------------------------
-        -- 繝輔ぃ繧､繝ｫ蜿朱寔
+        -- 郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ陷ｿ譛ｱ蟇・
         ------------------------------------------------
         local songfolder = "lib/data/Songs/" .. foldnames[i]
         local files = {}
 
-        -- 1. 閭梧勹逕ｻ蜒上・蜿門ｾ・
+        -- 1. 髢ｭ譴ｧ蜍ｹ騾包ｽｻ陷剃ｸ翫・陷ｿ髢・ｾ繝ｻ
         local bgpath, jacketName = findJacketInFolder(songfolder)
         if bgpath then
             local ext = string.match(string.lower(jacketName or bgpath), "%.([%w]+)$")
             if ext then
-                table.insert(files, {
+                table_insert(files, {
                     name = "jacket." .. ext,
                     data = readFile(bgpath)
                 })
             else
                 -- fallback
-                table.insert(files, {
+                table_insert(files, {
                     name = "jacket",
                     data = readFile(bgpath)
                 })
             end
         end
 
-        -- 2. 髻ｳ讌ｽ繝輔ぃ繧､繝ｫ縺ｮ蜿門ｾ・
+        -- 2. 鬮ｻ・ｳ隶鯉ｽｽ郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ邵ｺ・ｮ陷ｿ髢・ｾ繝ｻ
         local musicName = sflmeta[i] and sflmeta[i].musicfile
         local musicpath, resolvedMusicName, resolveMode = findAudioInFolder(songfolder, musicName)
         if musicpath then
             if resolveMode ~= "meta_exact" then
                 log.info("  Info: Music file resolved by fallback (" .. resolveMode .. "): " .. tostring(resolvedMusicName))
             end
-            table.insert(files, {
+            table_insert(files, {
                 name = sanitizeEntryName(resolvedMusicName, "music.wav"),
                 data = readFile(musicpath)
             })
@@ -1733,21 +1793,21 @@ function createsfbfile(opts)
             log.warn("  Warning: Music file not found in folder: " .. songfolder .. " (meta=" .. tostring(musicName) .. ")")
         end
 
-        -- 3. [譖ｲ蜷江.bin 縺ｮ菴懈・・医ユ繝ｼ繝悶Ν繧呈枚蟄怜・蛹厄ｼ・
+        -- 3. [隴厄ｽｲ陷ｷ豎・bin 邵ｺ・ｮ闖ｴ諛医・繝ｻ蛹ｻ繝ｦ郢晢ｽｼ郢晄じﾎ晉ｹｧ蜻域椢陝・懊・陋ｹ蜴・ｽｼ繝ｻ
         local chartTable = createchartbin(i)
-        -- 邁｡蜊倥↑繝・・繝悶Ν繧ｷ繝ｪ繧｢繝ｩ繧､繧ｺ (JSON繝ｩ繧､繝悶Λ繝ｪ縺後≠繧九↑繧峨◎縺｡繧峨ｒ謗ｨ螂ｨ)
+        -- 驍・ｽ｡陷雁･竊醍ｹ昴・繝ｻ郢晄じﾎ晉ｹｧ・ｷ郢晢ｽｪ郢ｧ・｢郢晢ｽｩ郢ｧ・､郢ｧ・ｺ (JSON郢晢ｽｩ郢ｧ・､郢晄じﾎ帷ｹ晢ｽｪ邵ｺ蠕娯旺郢ｧ荵昶・郢ｧ蟲ｨ笳守ｸｺ・｡郢ｧ蟲ｨ・定ｬ暦ｽｨ陞ゑｽｨ)
         local function basicSerialize(t)
             local function serializeValue(v)
                 if type(v) == "table" then return basicSerialize(v)
-                elseif type(v) == "string" then return string.format("%q", v)
+                elseif type(v) == "string" then return string_format("%q", v)
                 else return tostring(v) end
             end
             local parts = {}
             for k, v in pairs(t) do
-                local key = (type(k) == "string") and string.format("[%q]", k) or string.format("[%d]", k)
-                table.insert(parts, key .. "=" .. serializeValue(v))
+                local key = (type(k) == "string") and string_format("[%q]", k) or string_format("[%d]", k)
+                table_insert(parts, key .. "=" .. serializeValue(v))
             end
-            return "{" .. table.concat(parts, ",") .. "}"
+            return "{" .. table_concat(parts, ",") .. "}"
         end
         
         local chartData = "return " .. basicSerialize(chartTable)
@@ -1756,7 +1816,7 @@ function createsfbfile(opts)
         log.debug("  After basicSerialize - first 500 chars of chartData:")
         log.debug("    " .. chartData:sub(1, 500))
 
-        -- 譖ｲ蜷搾ｼ・itle・峨ｒ繝吶・繧ｹ縺ｫ繝輔ぃ繧､繝ｫ蜷阪ｒ逕滓・縲ら┌蜉ｹ譁・ｭ励・蜑企勁縲・
+        -- 隴厄ｽｲ陷ｷ謳ｾ・ｼ繝ｻitle繝ｻ蟲ｨ・堤ｹ晏生繝ｻ郢ｧ・ｹ邵ｺ・ｫ郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ陷ｷ髦ｪ・帝墓ｻ薙・邵ｲ繧俄伯陷会ｽｹ隴√・・ｭ蜉ｱ繝ｻ陷台ｼ∝求邵ｲ繝ｻ
         local chartFileName = (sflmeta[i] and sflmeta[i].title) or foldnames[i] or "chart"
         chartFileName = chartFileName:gsub("[%c%?%*\\/<>|:\"]", "")
         if chartFileName == "" then
@@ -1764,55 +1824,55 @@ function createsfbfile(opts)
         end
         chartFileName = chartFileName .. ".bin"
 
-        table.insert(files, {
+        table_insert(files, {
             name = sanitizeEntryName(chartFileName, "chart.bin"),
             data = chartData
         })
 
         ------------------------------------------------
-        -- 蜃ｺ蜉帛・繝輔ぃ繧､繝ｫ蜷阪ｒ豎ｺ繧√ｋ・医ヵ繧ｩ繝ｫ繝蜷阪・繝ｼ繧ｹ・・
+        -- 陷・ｽｺ陷牙ｸ帙・郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ陷ｷ髦ｪ・定ｱ趣ｽｺ郢ｧ竏夲ｽ九・蛹ｻ繝ｵ郢ｧ・ｩ郢晢ｽｫ郢敖陷ｷ髦ｪ繝ｻ郢晢ｽｼ郢ｧ・ｹ繝ｻ繝ｻ
         ------------------------------------------------
-        -- 譌｢縺ｫ蟄伜惠縺吶ｋ譖ｲ縺ｯ繧ｹ繧ｭ繝・・・井ｸ崎ｶｳ蛻・・縺ｿ逕滓・・・
+        -- 隴鯉ｽ｢邵ｺ・ｫ陝・ｼ懈Β邵ｺ蜷ｶ・玖ｭ厄ｽｲ邵ｺ・ｯ郢ｧ・ｹ郢ｧ・ｭ郢昴・繝ｻ繝ｻ莠包ｽｸ蟠趣ｽｶ・ｳ陋ｻ繝ｻ繝ｻ邵ｺ騾墓ｻ薙・繝ｻ繝ｻ
         if love.filesystem.getInfo(archiveName) then
             love.filesystem.remove(archiveName)
             log.info("  Overwriting: " .. archiveName)
         end
             ------------------------------------------------
-            -- 繧｢繝ｼ繧ｫ繧､繝也函謌・(HEADER + INDEX + DATA)
+            -- 郢ｧ・｢郢晢ｽｼ郢ｧ・ｫ郢ｧ・､郢昜ｹ溷・隰後・(HEADER + INDEX + DATA)
             ------------------------------------------------
-            -- 繝倥ャ繝繝ｼ菴懈・ (Magic, Version, FileCount)
+            -- 郢晏･繝｣郢敖郢晢ｽｼ闖ｴ諛医・ (Magic, Version, FileCount)
             local header = "SFB1\n1\n" .. #files .. "\n"
 
-            -- 繧､繝ｳ繝・ャ繧ｯ繧ｹ縺ｮ莉ｮ險育ｮ暦ｼ医が繝輔そ繝・ヨ邂怜・逕ｨ・・
-            -- 繝輔ぃ繧､繝ｫ蜷・繧ｪ繝輔そ繝・ヨ,繧ｵ繧､繧ｺ\n
+            -- 郢ｧ・､郢晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ邵ｺ・ｮ闔会ｽｮ髫ｪ閧ｲ・ｮ證ｦ・ｼ蛹ｻ縺檎ｹ晁ｼ斐◎郢昴・繝ｨ驍よ懊・騾包ｽｨ繝ｻ繝ｻ
+            -- 郢晁ｼ斐＜郢ｧ・､郢晢ｽｫ陷ｷ繝ｻ郢ｧ・ｪ郢晁ｼ斐◎郢昴・繝ｨ,郢ｧ・ｵ郢ｧ・､郢ｧ・ｺ\n
             local tempIndexParts = {}
             local tempIndexCount = 0
             for _, f in ipairs(files) do
                 tempIndexCount = tempIndexCount + 1
                 tempIndexParts[tempIndexCount] = f.name .. ",0000000000,0000000000\n"
             end
-            local tempIndex = table.concat(tempIndexParts)
+            local tempIndex = table_concat(tempIndexParts)
 
-            -- 繝・・繧ｿ髢句ｧ倶ｽ咲ｽｮ = 繝倥ャ繝繝ｼ髟ｷ + 繧､繝ｳ繝・ャ繧ｯ繧ｹ髟ｷ
+            -- 郢昴・繝ｻ郢ｧ鬮｢蜿･・ｧ蛟ｶ・ｽ蜥ｲ・ｽ・ｮ = 郢晏･繝｣郢敖郢晢ｽｼ鬮滂ｽｷ + 郢ｧ・､郢晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ鬮滂ｽｷ
             local dataOffset = #header + #tempIndex
             local indexParts = {}
             local indexCount = 0
             local currentOffset = dataOffset
 
-            -- 豁｣縺励＞繧､繝ｳ繝・ャ繧ｯ繧ｹ縺ｮ讒狗ｯ・
+            -- 雎・ｽ｣邵ｺ蜉ｱ・樒ｹｧ・､郢晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ邵ｺ・ｮ隶堤距・ｯ繝ｻ
             for _, f in ipairs(files) do
                 local fileSize = #f.data
                 indexCount = indexCount + 1
-                indexParts[indexCount] = f.name .. "," .. string.format("%010d", currentOffset) .. "," .. string.format("%010d", fileSize) .. "\n"
+                indexParts[indexCount] = f.name .. "," .. string_format("%010d", currentOffset) .. "," .. string_format("%010d", fileSize) .. "\n"
                 currentOffset = currentOffset + fileSize
             end
-            local index = table.concat(indexParts)
+            local index = table_concat(indexParts)
 
-            -- 譖ｸ縺崎ｾｼ縺ｿ
-            -- 繝倥ャ繝繝ｼ縺ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧呈嶌縺崎ｾｼ繧
+            -- 隴厄ｽｸ邵ｺ蟠趣ｽｾ・ｼ邵ｺ
+            -- 郢晏･繝｣郢敖郢晢ｽｼ邵ｺ・ｨ郢ｧ・､郢晢ｽｳ郢昴・繝｣郢ｧ・ｯ郢ｧ・ｹ郢ｧ蜻亥ｶ檎ｸｺ蟠趣ｽｾ・ｼ郢ｧﾂ
             love.filesystem.write(archiveName, header .. index)
             
-            -- 蜷・ヵ繧｡繧､繝ｫ縺ｮ螳溘ョ繝ｼ繧ｿ繧定ｿｽ險假ｼ・ppend・峨☆繧・
+            -- 陷ｷ繝ｻ繝ｵ郢ｧ・｡郢ｧ・､郢晢ｽｫ邵ｺ・ｮ陞ｳ貅倥Ι郢晢ｽｼ郢ｧ郢ｧ螳夲ｽｿ・ｽ髫ｪ蛛・ｽｼ繝ｻppend繝ｻ蟲ｨ笘・ｹｧ繝ｻ
             for _, f in ipairs(files) do
                 love.filesystem.append(archiveName, f.data)
             end
@@ -1824,7 +1884,7 @@ function createsfbfile(opts)
 end
 
 
--- 単一曲の再生成処理用公開関数
+-- 蜊倅ｸ譖ｲ縺ｮ蜀咲函謌仙・逅・畑蜈ｬ髢矩未謨ｰ
 function createsfb.regenerateSingleSong(songIndex)
     log.info("createsfb.regenerateSingleSong() called for index=" .. tostring(songIndex))
     
@@ -1839,7 +1899,7 @@ function createsfb.regenerateSingleSong(songIndex)
     
     log.info("Processing single song [" .. songIndex .. "]: " .. foldnames[songIndex])
     
-    -- 単一曲用に変数を初期化
+    -- 蜊倅ｸ譖ｲ逕ｨ縺ｫ螟画焚繧貞・譛溷喧
     sflmeta[songIndex] = {}
     sfldiff[songIndex] = {}
     notedata = { easy={}, normal={}, hard={}, extra={}, custom={} }
@@ -1852,42 +1912,42 @@ function createsfb.regenerateSingleSong(songIndex)
     }
     measuretime = { easy={}, normal={}, hard={}, extra={}, custom={} }
     
-    -- 単一曲の解析処理
+    -- 蜊倅ｸ譖ｲ縺ｮ隗｣譫仙・逅・
     local ok, err = pcall(function() analyze_single_song(songIndex) end)
     if not ok then
         log.warn("analyze_single_song() failed for index " .. songIndex .. ": " .. tostring(err))
         return nil
     end
     
-    -- ファイル処理（既存の createsfbfile 内のロジックを参照）
+    -- 繝輔ぃ繧､繝ｫ蜃ｦ逅・ｼ域里蟄倥・ createsfbfile 蜀・・繝ｭ繧ｸ繝・け繧貞盾辣ｧ・・
     local songfolder = "lib/data/Songs/" .. foldnames[songIndex]
     local files = {}
     
-    -- ジャケット画像の取得
+    -- 繧ｸ繝｣繧ｱ繝・ヨ逕ｻ蜒上・蜿門ｾ・
     local bgpath, jacketName = findJacketInFolder(songfolder)
     if bgpath then
         local ext = string.match(string.lower(jacketName or bgpath), "%.([%w]+)$")
         if ext then
-            table.insert(files, {
+            table_insert(files, {
                 name = "jacket." .. ext,
                 data = readFile(bgpath)
             })
         else
-            table.insert(files, {
+            table_insert(files, {
                 name = "jacket",
                 data = readFile(bgpath)
             })
         end
     end
     
-    -- 音楽ファイルの取得
+    -- 髻ｳ讌ｽ繝輔ぃ繧､繝ｫ縺ｮ蜿門ｾ・
     local musicName = sflmeta[songIndex] and sflmeta[songIndex].musicfile
     local musicpath, resolvedMusicName, resolveMode = findAudioInFolder(songfolder, musicName)
     if musicpath then
         if resolveMode ~= "meta_exact" then
             log.info("Music file resolved by fallback (" .. resolveMode .. "): " .. tostring(resolvedMusicName))
         end
-        table.insert(files, {
+        table_insert(files, {
             name = sanitizeEntryName(resolvedMusicName, "music.wav"),
             data = readFile(musicpath)
         })
@@ -1895,20 +1955,20 @@ function createsfb.regenerateSingleSong(songIndex)
         log.warn("Music file not found in folder: " .. songfolder .. " (meta=" .. tostring(musicName) .. ")")
     end
     
-    -- チャート.bin の作成
+    -- 繝√Ε繝ｼ繝・bin 縺ｮ菴懈・
     local chartTable = createchartbin(songIndex)
     local function basicSerialize(t)
         local function serializeValue(v)
             if type(v) == "table" then return basicSerialize(v)
-            elseif type(v) == "string" then return string.format("%q", v)
+            elseif type(v) == "string" then return string_format("%q", v)
             else return tostring(v) end
         end
         local parts = {}
         for k, v in pairs(t) do
-            local key = (type(k) == "string") and string.format("[%q]", k) or string.format("[%d]", k)
-            table.insert(parts, key .. "=" .. serializeValue(v))
+            local key = (type(k) == "string") and string_format("[%q]", k) or string_format("[%d]", k)
+            table_insert(parts, key .. "=" .. serializeValue(v))
         end
-        return "{" .. table.concat(parts, ",") .. "}"
+        return "{" .. table_concat(parts, ",") .. "}"
     end
     
     local chartData = "return " .. basicSerialize(chartTable)
@@ -1920,12 +1980,12 @@ function createsfb.regenerateSingleSong(songIndex)
     end
     chartFileName = chartFileName .. ".bin"
     
-    table.insert(files, {
+    table_insert(files, {
         name = sanitizeEntryName(chartFileName, "chart.bin"),
         data = chartData
     })
     
-    -- 出力アーカイブファイル名を決める
+    -- 蜃ｺ蜉帙い繝ｼ繧ｫ繧､繝悶ヵ繧｡繧､繝ｫ蜷阪ｒ豎ｺ繧√ｋ
     local archiveBase = foldnames[songIndex] or "song"
     archiveBase = archiveBase:gsub("[%c%?%*\\/<>|:\"]", "")
     if archiveBase == "" then
@@ -1933,13 +1993,13 @@ function createsfb.regenerateSingleSong(songIndex)
     end
     local archiveName = archiveBase .. ".sfb"
     
-    -- 既に存在する場合はスキップするか削除する
+    -- 譌｢縺ｫ蟄伜惠縺吶ｋ蝣ｴ蜷医・繧ｹ繧ｭ繝・・縺吶ｋ縺句炎髯､縺吶ｋ
     if love.filesystem.getInfo(archiveName) then
         love.filesystem.remove(archiveName)
         log.info("Overwriting: " .. archiveName)
     end
     
-    -- SFBファイル生成
+    -- SFB繝輔ぃ繧､繝ｫ逕滓・
     local header = "SFB1\n1\n" .. #files .. "\n"
     local tempIndexParts = {}
     local tempIndexCount = 0
@@ -1947,7 +2007,7 @@ function createsfb.regenerateSingleSong(songIndex)
         tempIndexCount = tempIndexCount + 1
         tempIndexParts[tempIndexCount] = f.name .. ",0000000000,0000000000\n"
     end
-    local tempIndex = table.concat(tempIndexParts)
+    local tempIndex = table_concat(tempIndexParts)
     
     local dataOffset = #header + #tempIndex
     local indexParts = {}
@@ -1957,10 +2017,10 @@ function createsfb.regenerateSingleSong(songIndex)
     for _, f in ipairs(files) do
         local fileSize = #f.data
         indexCount = indexCount + 1
-        indexParts[indexCount] = f.name .. "," .. string.format("%010d", currentOffset) .. "," .. string.format("%010d", fileSize) .. "\n"
+        indexParts[indexCount] = f.name .. "," .. string_format("%010d", currentOffset) .. "," .. string_format("%010d", fileSize) .. "\n"
         currentOffset = currentOffset + fileSize
     end
-    local index = table.concat(indexParts)
+    local index = table_concat(indexParts)
     
     love.filesystem.write(archiveName, header .. index)
     for _, f in ipairs(files) do
@@ -1973,6 +2033,8 @@ end
 
 
 return createsfb
+
+
 
 
 

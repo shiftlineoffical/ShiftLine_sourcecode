@@ -1,12 +1,31 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local ui = {}
 
--- 生成: 平行四辺形ポリゴン (x1,y1) 左上 (x2,y2) 右上 で傾きを指定
+-- 逕滓・: 蟷ｳ陦悟屁霎ｺ蠖｢繝昴Μ繧ｴ繝ｳ (x1,y1) 蟾ｦ荳・(x2,y2) 蜿ｳ荳・縺ｧ蛯ｾ縺阪ｒ謖・ｮ・
 function ui.parallelogramPoly(x1, x2, y1, y2, slope)
     local dx = slope * (y2 - y1)
     return {x1, y1, x1 + dx, y2, x2 + dx, y2, x2, y1}
 end
 
--- ポリゴンで塗りつぶし、枠、テキストを描画。テキストは幅に収まるようフォントサイズを縮小する
+-- 繝昴Μ繧ｴ繝ｳ縺ｧ蝪励ｊ縺､縺ｶ縺励∵棧縲√ユ繧ｭ繧ｹ繝医ｒ謠冗判縲ゅユ繧ｭ繧ｹ繝医・蟷・↓蜿弱∪繧九ｈ縺・ヵ繧ｩ繝ｳ繝医し繧､繧ｺ繧堤ｸｮ蟆上☆繧・
 function ui.drawParallelogram(poly, text, font, opts)
     opts = opts or {}
     local mx, my = love.mouse.getPosition()
@@ -49,8 +68,8 @@ function ui.drawParallelogram(poly, text, font, opts)
     if maxW == 0 then
         local minx, maxx = poly[1], poly[1]
         for i = 1, #poly, 2 do
-            minx = math.min(minx, poly[i])
-            maxx = math.max(maxx, poly[i])
+            minx = math_min(minx, poly[i])
+            maxx = math_max(maxx, poly[i])
         end
         maxW = maxx - minx - (opts.textPadding or 24)
     end
@@ -71,7 +90,7 @@ function ui.drawParallelogram(poly, text, font, opts)
     love.graphics.pop()
 end
 
--- 受け取った画像を最大幅/高さに収めるスケール値を返す
+-- 蜿励￠蜿悶▲縺溽判蜒上ｒ譛螟ｧ蟷・鬮倥＆縺ｫ蜿弱ａ繧九せ繧ｱ繝ｼ繝ｫ蛟､繧定ｿ斐☆
 function ui.scaleToFit(img, maxW, maxH)
     if not img or type(img.getWidth) ~= "function" then return 1 end
     local iw = img:getWidth()
@@ -79,13 +98,13 @@ function ui.scaleToFit(img, maxW, maxH)
     if iw == 0 or ih == 0 then return 1 end
     local sx = maxW / iw
     local sy = maxH / ih
-    return math.min(sx, sy, 1)
+    return math_min(sx, sy, 1)
 end
 
 function ui.scaleFontSize(size)
     local _, displayHeight = love.graphics.getDimensions()
     local baseHeight = 1080
-    return math.max(12, math.floor(size * displayHeight / baseHeight))
+    return math_max(12, math_floor(size * displayHeight / baseHeight))
 end
 
 function ui.newFont(fontPathOrSize, size)
@@ -96,3 +115,5 @@ function ui.newFont(fontPathOrSize, size)
 end
 
 return ui
+
+

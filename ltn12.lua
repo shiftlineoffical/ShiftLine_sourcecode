@@ -1,4 +1,4 @@
------------------------------------------------------------------------------
+﻿-----------------------------------------------------------------------------
 -- LTN12 - Filters, sources, sinks and pumps.
 -- LuaSocket toolkit.
 -- Author: Diego Nehab
@@ -7,6 +7,25 @@
 -----------------------------------------------------------------------------
 -- Declare module
 -----------------------------------------------------------------------------
+local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local string = require("string")
 local table = require("table")
 local unpack = unpack or table.unpack
@@ -143,11 +162,11 @@ function source.rewind(src)
     local t = {}
     return function(chunk)
         if not chunk then
-            chunk = table.remove(t)
+            chunk = table_remove(t)
             if not chunk then return src()
             else return chunk end
         else
-            table.insert(t, chunk)
+            table_insert(t, chunk)
         end
     end
 end
@@ -206,13 +225,13 @@ end
 -- (thanks to Wim Couwenberg)
 function source.cat(...)
     local arg = {...}
-    local src = table.remove(arg, 1)
+    local src = table_remove(arg, 1)
     return function()
         while src do
             local chunk, err = src()
             if chunk then return chunk end
             if err then return nil, err end
-            src = table.remove(arg, 1)
+            src = table_remove(arg, 1)
         end
     end
 end
@@ -224,7 +243,7 @@ end
 function sink.table(t)
     t = t or {}
     local f = function(chunk, err)
-        if chunk then table.insert(t, chunk) end
+        if chunk then table_insert(t, chunk) end
         return 1
     end
     return f, t
@@ -273,7 +292,7 @@ end
 function sink.chain(f, snk, ...)
     if ... then
         local args = { f, snk, ... }
-        snk = table.remove(args, #args)
+        snk = table_remove(args, #args)
         f = filter.chain(unpack(args))
     end
     base.assert(f and snk)
@@ -311,3 +330,5 @@ function pump.all(src, snk, step)
 end
 
 return _M
+
+

@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local result = {}
 local i18n = require "i18n"
 local ui = require("lib.ui")
@@ -190,9 +209,9 @@ end
 
 local function drawCroppedImage(image, x, y, w, h, alpha)
     if isImageObject(image) then
-        local imageW = math.max(1, image:getWidth())
-        local imageH = math.max(1, image:getHeight())
-        local scale = math.max(w / imageW, h / imageH)
+        local imageW = math_max(1, image:getWidth())
+        local imageH = math_max(1, image:getHeight())
+        local scale = math_max(w / imageW, h / imageH)
         local drawW = imageW * scale
         local drawH = imageH * scale
         local drawX = x + (w - drawW) * 0.5
@@ -210,19 +229,26 @@ end
 
 local function getResultScore()
     local scoreData = _G.score or {}
-    local perfect = math.max(0, math.floor(tonumber(scoreData.perfect) or 0))
-    local good = math.max(0, math.floor(tonumber(scoreData.good) or 0))
-    local bad = math.max(0, math.floor(tonumber(scoreData.bad) or 0))
-    local miss = math.max(0, math.floor(tonumber(scoreData.miss) or 0))
+    local perfect = math_max(0, math_floor(tonumber(scoreData.perfect) or 0))
+    local good = math_max(0, math_floor(tonumber(scoreData.good) or 0))
+    local bad = math_max(0, math_floor(tonumber(scoreData.bad) or 0))
+    local miss = math_max(0, math_floor(tonumber(scoreData.miss) or 0))
+    local total = perfect + good + bad + miss
+    local baseScore = math_max(0, math_floor(tonumber(scoreData.score) or 0))
+
+    local effectiveScore = baseScore
+    if effectiveScore <= 0 and total > 0 then
+        effectiveScore = math_max(1, total)
+    end
 
     return {
-        score = math.max(0, math.floor(tonumber(scoreData.score) or 0)),
-        maxcombo = math.max(0, math.floor(tonumber(scoreData.maxcombo) or 0)),
+        score = effectiveScore,
+        maxcombo = math_max(0, math_floor(tonumber(scoreData.maxcombo) or 0)),
         perfect = perfect,
         good = good,
         bad = bad,
         miss = miss,
-        total = perfect + good + bad + miss
+        total = total
     }
 end
 
@@ -237,7 +263,7 @@ end
 
 local function parseDifficultyValue(level)
     if type(level) == "number" then
-        return math.max(1, level)
+        return math_max(1, level)
     end
 
     if type(level) ~= "string" then
@@ -328,9 +354,9 @@ local function updateRatingStats(rating)
         stats.ratingHistory = {}
     end
 
-    table.insert(stats.ratingHistory, rating)
+    table_insert(stats.ratingHistory, rating)
     while #stats.ratingHistory > 50 do
-        table.remove(stats.ratingHistory, 1)
+        table_remove(stats.ratingHistory, 1)
     end
 
     local sum = 0
@@ -378,7 +404,7 @@ local function sendResultToGameJolt()
         good = scoreData.good,
         bad = scoreData.bad,
         miss = scoreData.miss,
-        accuracy = string.format("%.4f", getAccuracy(scoreData)),
+        accuracy = string_format("%.4f", getAccuracy(scoreData)),
         settings = (settings and settings.settingsdata) or {}
     }
 
@@ -462,7 +488,7 @@ local function triggerAction(actionId)
 end
 
 local function drawBackdrop(w, h, jacket, alpha)
-    local splitX = math.floor(w * 0.5)
+    local splitX = math_floor(w * 0.5)
 
     love.graphics.clear(0.06, 0.06, 0.06, 1)
     drawCroppedImage(jacket, 0, 0, w, h, 0.16)
@@ -470,7 +496,7 @@ local function drawBackdrop(w, h, jacket, alpha)
     love.graphics.setColor(0.03, 0.03, 0.03, 0.92)
     love.graphics.rectangle("fill", 0, 0, w, h)
 
-    drawCroppedImage(jacket, 0, 0, splitX, h, math.max(0.14, alpha))
+    drawCroppedImage(jacket, 0, 0, splitX, h, math_max(0.14, alpha))
     love.graphics.setColor(0.02, 0.02, 0.02, 0.18 + 0.14 * alpha)
     love.graphics.rectangle("fill", 0, 0, splitX, h)
 
@@ -498,13 +524,13 @@ local function drawHeroPanel(x, y, w, h, accent, alpha, title, artist, level, ja
     local jacketY
 
     if sideBySide then
-        jacketSize = clamp(math.min(w * 0.40, h - 12), 150, 250)
+        jacketSize = clamp(math_min(w * 0.40, h - 12), 150, 250)
         jacketX = x + w - jacketSize
         jacketY = y + h - jacketSize
         titleW = w - jacketSize - 26
     else
         local headerH = clamp(h * 0.28, 120, 190)
-        jacketSize = clamp(math.min(w * 0.78, h - headerH - 20), 190, 340)
+        jacketSize = clamp(math_min(w * 0.78, h - headerH - 20), 190, 340)
         jacketX = x + w - jacketSize - 6
         jacketY = y + headerH + 22
     end
@@ -522,7 +548,7 @@ local function drawHeroPanel(x, y, w, h, accent, alpha, title, artist, level, ja
     love.graphics.printf(title, x, rankBottom - 14, titleW, "right")
 
     local _, titleLines = fonts.songHero:getWrap(title, titleW)
-    local titleHeight = math.max(1, #titleLines) * fonts.songHero:getHeight()
+    local titleHeight = math_max(1, #titleLines) * fonts.songHero:getHeight()
     local artistY = rankBottom - 6 + titleHeight
 
     love.graphics.setFont(fonts.body)
@@ -567,7 +593,7 @@ local function drawResultHeader(x, y, w, h, alpha, title, artist, level, rank)
     love.graphics.printf(rank, x + pad, y + 12, w - pad * 2, "right")
 
     local rankW = rankFont:getWidth(rank)
-    local contentW = math.max(140, w - pad * 2 - rankW - 24)
+    local contentW = math_max(140, w - pad * 2 - rankW - 24)
     local titleY = y + clamp(h * 0.36, 52, 88)
 
     love.graphics.setFont(titleFont)
@@ -575,7 +601,7 @@ local function drawResultHeader(x, y, w, h, alpha, title, artist, level, rank)
     love.graphics.printf(title, x + pad, titleY, contentW, "left")
 
     local _, titleLines = titleFont:getWrap(title, contentW)
-    local titleHeight = math.max(1, #titleLines) * titleFont:getHeight()
+    local titleHeight = math_max(1, #titleLines) * titleFont:getHeight()
     local artistY = titleY + titleHeight + 8
 
     love.graphics.setFont(fonts.body)
@@ -601,16 +627,16 @@ local function drawScoreBlock(x, y, w, h, alpha, score, total, ratingAvg, songRa
 
     love.graphics.setFont(fonts.score)
     love.graphics.setColor(1, 1, 1, alpha)
-    love.graphics.printf(string.format("%07d", score), x + pad, y + h * 0.33, w - pad * 2, "right")
+    love.graphics.printf(string_format("%07d", score), x + pad, y + h * 0.33, w - pad * 2, "right")
 
     local ratingY = y + h - fonts.eyebrow:getHeight() * 4 - 18
     love.graphics.setFont(fonts.eyebrow)
     love.graphics.setColor(1, 1, 1, 0.58 * alpha)
-    love.graphics.print(i18n.t("ratingAverage") .. " " .. string.format("%.2f", ratingAvg or 0), x + pad, ratingY)
-    love.graphics.print(i18n.t("songRate") .. " " .. string.format("%.2f", songRating or 0), x + pad, ratingY + fonts.eyebrow:getHeight() + 6)
+    love.graphics.print(i18n.t("ratingAverage") .. " " .. string_format("%.2f", ratingAvg or 0), x + pad, ratingY)
+    love.graphics.print(i18n.t("songRate") .. " " .. string_format("%.2f", songRating or 0), x + pad, ratingY + fonts.eyebrow:getHeight() + 6)
 
     if type(bestRating) == "number" and bestRating > 0 then
-        love.graphics.print(i18n.t("bestRating") .. " " .. string.format("%.2f", bestRating), x + pad, ratingY + (fonts.eyebrow:getHeight() + 6) * 2)
+        love.graphics.print(i18n.t("bestRating") .. " " .. string_format("%.2f", bestRating), x + pad, ratingY + (fonts.eyebrow:getHeight() + 6) * 2)
     end
 
     love.graphics.print(i18n.t("totalNotes") .. tostring(total), x + pad, y + h - fonts.eyebrow:getHeight() - 14)
@@ -689,7 +715,7 @@ function result.load()
 end
 
 function result.update(dt)
-    introTime = introTime + math.max(0, tonumber(dt) or 0)
+    introTime = introTime + math_max(0, tonumber(dt) or 0)
 end
 
 function result.keypressed(key)
@@ -724,7 +750,7 @@ function result.draw()
     local w, h = love.graphics.getDimensions()
     local scoreData = getResultScore()
     local accuracy = getAccuracy(scoreData)
-    local accuracyText = string.format("%.2f%%", accuracy * 100)
+    local accuracyText = string_format("%.2f%%", accuracy * 100)
     local rank = getRank(scoreData)
     local songRating = getSongRating(scoreData, tostring(_G.level or ""))
     local stats = settings and settings.settingsdata and settings.settingsdata.stats or {}
@@ -741,23 +767,23 @@ function result.draw()
 
     drawBackdrop(w, h, jacket, baseAlpha)
 
-    local splitX = math.floor(w * 0.5)
+    local splitX = math_floor(w * 0.5)
     local rightX = splitX
     local rightW = w - splitX
-    local headerH = math.floor(h * 0.28)
-    local scoreH = math.floor(h * 0.17)
-    local metricH = math.floor(h * 0.11)
-    local footerH = math.floor(h * 0.11)
+    local headerH = math_floor(h * 0.28)
+    local scoreH = math_floor(h * 0.17)
+    local metricH = math_floor(h * 0.11)
+    local footerH = math_floor(h * 0.11)
     local judgementAreaH = h - headerH - scoreH - metricH - footerH
-    local judgementH = math.floor(judgementAreaH / 4)
+    local judgementH = math_floor(judgementAreaH / 4)
     local judgementRemainder = judgementAreaH - judgementH * 4
 
     drawResultHeader(rightX, 0, rightW, headerH, contentT, title, artist, level, rank)
     drawScoreBlock(rightX, headerH, rightW, scoreH, panelT, scoreData.score, scoreData.total, ratingAvg, songRating, bestRating)
 
     local metricY = headerH + scoreH
-    local maxComboW = math.floor(rightW * 0.34)
-    local accuracyW = math.floor(rightW * 0.33)
+    local maxComboW = math_floor(rightW * 0.34)
+    local accuracyW = math_floor(rightW * 0.33)
     local rankW = rightW - maxComboW - accuracyW
     drawStatStrip(rightX, metricY, maxComboW, metricH, 0, i18n.t("maxCombo"), tostring(scoreData.maxcombo), accent, panelT, false)
     drawStatStrip(rightX + maxComboW, metricY, accuracyW, metricH, 0, i18n.t("accuracy"), accuracyText, accent, panelT, false)
@@ -781,10 +807,10 @@ function result.draw()
     end
 
     local footerY = h - footerH
-    local hintH = math.min(22, math.floor(footerH * 0.28))
+    local hintH = math_min(22, math_floor(footerH * 0.28))
     local buttonY = footerY + hintH
     local buttonH = h - buttonY
-    local retryW = math.floor(rightW * 0.42)
+    local retryW = math_floor(rightW * 0.42)
     local selectW = rightW - retryW
 
     if buttonT > 0 then
@@ -831,3 +857,5 @@ function result.quit()
 end
 
 return result
+
+

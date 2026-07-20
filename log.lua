@@ -1,4 +1,4 @@
---
+﻿--
 -- log.lua
 --
 -- Copyright (c) 2016 rxi
@@ -7,12 +7,32 @@
 -- under the terms of the MIT license. See LICENSE for details.
 --
 
+local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local log = { _version = "0.1.0" }
 
 log.usecolor = true
 log.outfile = nil
 log.level = "trace"
-log.useLoveFilesystem = true  -- Use love.filesystem for LÖVE 2D compatibility
+log.useLoveFilesystem = true  -- Use love.filesystem for Lﾃ坊E 2D compatibility
+local errorHandlerActive = false
 
 
 local modes = {
@@ -34,7 +54,7 @@ end
 local round = function(x, increment)
   increment = increment or 1
   x = x / increment
-  return (x > 0 and math.floor(x + .5) or math.ceil(x - .5)) * increment
+  return (x > 0 and math_floor(x + .5) or math.ceil(x - .5)) * increment
 end
 
 
@@ -49,7 +69,7 @@ local tostring = function(...)
     end
     t[#t + 1] = _tostring(x)
   end
-  return table.concat(t, " ")
+  return table_concat(t, " ")
 end
 
 
@@ -67,7 +87,7 @@ for i, x in ipairs(modes) do
     local lineinfo = info.short_src .. ":" .. info.currentline
 
     -- Output to console
-    print(string.format("%s[%-6s%s]%s %s: %s",
+    print(string_format("%s[%-6s%s]%s %s: %s",
                         log.usecolor and x.color or "",
                         nameupper,
                         os.date("%H:%M:%S"),
@@ -76,17 +96,24 @@ for i, x in ipairs(modes) do
                         msg))
 
     -- If error level and console is available, send to console
-    if x.name == "error" and _G.console and _G.console.logError then
-      local traceback_str = debug.traceback("", 2)
-      _G.console.logError(msg, traceback_str)
+    if x.name == "error" and _G.console and _G.console.logError and not errorHandlerActive then
+      errorHandlerActive = true
+      local ok, err = pcall(function()
+        local traceback_str = debug.traceback("", 2)
+        _G.console.logError(msg, traceback_str)
+      end)
+      errorHandlerActive = false
+      if not ok then
+        print("[ERROR] Failed to log to console: " .. tostring(err))
+      end
     end
 
     -- Output to log file
     if log.outfile then
       if log.useLoveFilesystem and love and love.filesystem then
-        -- Use love.filesystem for LÖVE 2D
+        -- Use love.filesystem for Lﾃ坊E 2D
         local content = love.filesystem.read(log.outfile) or ""
-        local str = string.format("[%-6s%s] %s: %s\n",
+        local str = string_format("[%-6s%s] %s: %s\n",
                                   nameupper, os.date("%H:%M:%S"), lineinfo, msg)
         local ok, err = love.filesystem.write(log.outfile, content .. str)
         if not ok and i <= levels["warn"] then
@@ -96,7 +123,7 @@ for i, x in ipairs(modes) do
         -- Fallback to io.open
         local fp = io.open(log.outfile, "a")
         if fp then
-          local str = string.format("[%-6s%s] %s: %s\n",
+          local str = string_format("[%-6s%s] %s: %s\n",
                                     nameupper, os.date("%H:%M:%S"), lineinfo, msg)
           fp:write(str)
           fp:close()
@@ -109,3 +136,5 @@ end
 
 
 return log
+
+

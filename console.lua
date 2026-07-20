@@ -1,8 +1,16 @@
 ﻿---@diagnostic disable: undefined-global, undefined-field
+local love = love
 local log = require "log"
 local i18n = require "i18n"
 local ok_gamejolt, gamejolt = pcall(require, "gamejolt")
 local ok_gamejoltuser, gamejoltuser = pcall(require, "gamejoltuser")
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
 
 ---@class GlobalEnv
 ---@field editorStarted boolean
@@ -31,7 +39,7 @@ local ok_gamejoltuser, gamejoltuser = pcall(require, "gamejoltuser")
 ---@field metaDisplayShown boolean
 ---@field metaDisplayFinished boolean
 
-console = {
+local console = {
     active = false,
     input = "",
     lines = {},
@@ -68,7 +76,8 @@ console = {
     playerDataBackup = {},
     suggestionIndex = 1,
     errors = {},
-    maxErrors = 100
+    maxErrors = 100,
+    allsongsflag =false
 }
 
 local consoleFontCache = {}
@@ -155,184 +164,97 @@ local function formatValue(value)
     return tostring(value)
 end
 
-local function ensureFlag(name)
-    if console.flags[name] == nil then
-        console.flags[name] = false
+function console.allsongs(arg)
+    -- arg: nil/"" -> 現在のフラグを使用
+    --       "true"/"1"/"on" -> 空フォルダも表示
+    --       "false"/"0"/"off" -> 空フォルダを表示しない
+    local s = nil
+    if type(arg) == "string" then
+        s = trim(arg)
+    elseif type(arg) == "boolean" then
+        s = arg and "true" or "false"
     end
-    return console.flags[name]
-end
 
-local function toggleFlag(name)
-    console.flags[name] = not ensureFlag(name)
-    console.addLine(name .. " = " .. tostring(console.flags[name]))
-    if console.flags[name] and console.debugCommands[name] then
-        console.debugCommands[name]()
-    end
-end
-
-local function setFlag(name, value)
-    console.flags[name] = value
-    console.addLine(name .. " = " .. tostring(console.flags[name]))
-    if value and console.debugCommands[name] then
-        console.debugCommands[name]()
-    end
-end
-
-local function gotoScene(id)
-    if type(id) ~= "number" then
-        return false
-    end
-    if type(changeProgram) == "function" then
-        changeProgram(id)
-        console.addLine("gotoScene(" .. id .. ")")
-        return true
-    end
-    console.addLine("gotoScene: changeProgramが利用できません")
-    return false
-end
-
-local function triggerDebugEvent(name)
-    if type(console.debugCommands[name]) == "function" then
-        console.debugCommands[name]()
-    end
-end
-
-local function startStoryDebug()
-    console.addLine("startStoryDebug()")
-    gotoScene(6)
-end
-
-local function startExamDebug()
-    console.addLine("startExamDebug()")
-    if type(createExam) == "function" then
-        createExam()
+    local includeEmpty
+    if not s or s == "" then
+        includeEmpty = console.allsongsflag or false
     else
-        console.addLine("startExamDebug: createExamが利用できません")
+        local ls = s:lower()
+        if ls == "true" or ls == "1" or ls == "on" then
+            includeEmpty = true
+        elseif ls == "false" or ls == "0" or ls == "off" then
+            includeEmpty = false
+        else
+            includeEmpty = console.allsongsflag or false
+        end
     end
-end
+    console.allsongsflag = includeEmpty
 
-local function showRewardDebug()
-    console.addLine("showRewardDebug()")
-    if type(_G) == "table" then
-        _G.rewardOpen = true
+    console.addLine("allsongs: 楽曲一覧を表示します (includeEmpty=" .. tostring(includeEmpty) .. ")")
+
+    -- チャートデータを取得（存在すれば）
+    local ok, chartdata = pcall(function() return chartreader() end)
+    if not ok or type(chartdata) ~= "table" then
+        chartdata = { name = {}, file = {} }
     end
-end
 
-local function reloadStoryDebug()
-    console.addLine("reloadStoryDebug()")
-    if type(reloadCurrentChart) == "function" then
-        reloadCurrentChart()
-    else
-        console.addLine("reloadStoryDebug: reloadCurrentChartが利用できません")
+    -- チャート側の一覧を表示（タイトルが空でも出力）
+    local count = # (chartdata.name or {})
+    console.addLine("chart entries: " .. tostring(count))
+    for i = 1, count do
+        local title = chartdata.name[i] or "(no title)"
+        local file = (chartdata.file and chartdata.file[i]) or ""
+        if file == "" then
+            console.addLine(string_format("  [%d] %s", i, title))
+        else
+            console.addLine(string_format("  [%d] %s  (%s)", i, title, tostring(file)))
+        end
     end
-end
 
-local function createExamDebug()
-    console.addLine("createExamDebug()")
-    startExamDebug()
-end
-
-local function showGameJoltUserData()
-    if not ok_gamejoltuser or not gamejoltuser then
-        console.addLine("gamejoltuserモジュールが利用できません")
+    if not includeEmpty then
         return
     end
-    console.addLine("gamejoltuser.userid=" .. tostring(gamejoltuser.userid))
-    console.addLine("gamejoltuser.user_token=" .. tostring(gamejoltuser.user_token))
-    console.addLine("gamejoltuser.autologin=" .. tostring(gamejoltuser.autologin))
-end
 
-local function executeAudioCommand(cmd)
-    if cmd == "audio_musiclist" then
-        if type(getMusicList) == "function" then
-            local ok, result = pcall(getMusicList)
-            if ok then
-                console.addLine("音声リストを読み込みました")
-                if type(result) == "table" then
-                    for i = 1, math.min(10, #result) do
-                        console.addLine("- " .. tostring(result[i]))
+    -- Songs フォルダ内のディレクトリも列挙し、チャートに無い（中身がない）ものを表示
+    local dirs = { "lib/data/Songs", "Songs" }
+    local seen = {}
+    for i = 1, #(chartdata.file or {}) do
+        local f = chartdata.file[i]
+        if type(f) == "string" and f ~= "" then
+            -- 名前のみで比較しやすくする
+            local name = f:match("([^/\\]+)$") or f
+            seen[name] = true
+        end
+    end
+
+    for _, path in ipairs(dirs) do
+        if love and love.filesystem and love.filesystem.getDirectoryItems then
+            local ok2, items = pcall(love.filesystem.getDirectoryItems, path)
+            if ok2 and type(items) == "table" then
+                for _, item in ipairs(items) do
+                    local full = path .. "/" .. item
+                    local info = nil
+                    pcall(function() info = love.filesystem.getInfo(full) end)
+                    if info and info.type == "directory" then
+                        if not seen[item] then
+                            console.addLine("  [empty] " .. item .. " (no chart)")
+                            seen[item] = true
+                        end
                     end
                 end
-            else
-                console.addLine("audio_musiclistコマンドが失敗しました")
+                return
             end
-        else
-            console.addLine("audio_musiclist: 利用できません")
         end
-        return
-    end
-
-    if cmd == "audio_sfxlist" then
-        console.addLine("audio_sfxlist: 利用できません")
-    end
-end
-
-local function executePlayerCommand(cmd, args)
-    local parts = {}
-    for part in (args or ""):gmatch("%S+") do
-        table.insert(parts, part)
-    end
-
-    if cmd == "player_data_set" then
-        if #parts < 2 then
-            console.addLine("使用法: player_data_set キー 値")
-            return
-        end
-        console.playerData[parts[1]] = parts[2]
-        console.addLine("プレイヤーデータ設定: " .. parts[1] .. "=" .. tostring(parts[2]))
-        return
-    end
-
-    if cmd == "player_data_get" then
-        if #parts < 1 then
-            console.addLine("使用法: player_data_get キー")
-            return
-        end
-        console.addLine(parts[1] .. " = " .. formatValue(console.playerData[parts[1]]))
-        return
-    end
-
-    if cmd == "player_data_show" then
-        console.addLine("playerData = " .. formatValue(console.playerData))
-        return
-    end
-
-    if cmd == "player_data_backup" or cmd == "player_data_bukup" then
-        console.playerDataBackup = {}
-        for k, v in pairs(console.playerData) do
-            console.playerDataBackup[k] = v
-        end
-        console.addLine("プレイヤーデータのバックアップを作成しました")
-        return
-    end
-
-    if cmd == "player_delete" then
-        if #parts < 1 then
-            console.addLine("使用法: player_delete キー")
-            return
-        end
-        console.playerData[parts[1]] = nil
-        console.addLine("プレイヤーデータを削除しました: " .. parts[1])
-        return
-    end
-
-    if cmd == "player_verify" or cmd == "player_verfy" then
-        local count = 0
-        for _ in pairs(console.playerData) do
-            count = count + 1
-        end
-        console.addLine("プレイヤーデータエントリ=" .. count .. ", バックアップ=" .. tostring(next(console.playerDataBackup) ~= nil))
-        return
     end
 end
 
 local function copyConsoleOutput()
-    local text = table.concat(console.lines, "\n")
+    local text = table_concat(console.lines, "\n")
     if love.system and love.system.setClipboardText then
         love.system.setClipboardText(text)
         console.addLine("console output copied to clipboard")
     else
-    console.addLine("クリップボードが利用できません")
+        console.addLine("クリップボードが利用できません")
     end
 end
 
@@ -371,9 +293,20 @@ local function showWatchwuserInfo(args)
     
     for _, song in ipairs(found_songs) do
         local title = song.title or "Unknown"
-        local users = table.concat(song.watchusers, ", ")
+        local users = table_concat(song.watchusers, ", ")
         console.addLine("  [" .. song.index .. "] " .. title .. " (ウォッチャー: " .. users .. ")")
     end
+end
+
+-- グローバル呼び出しに備え、簡易表示関数を提供する
+function showGameJoltUserData()
+    if not ok_gamejoltuser or not gamejoltuser then
+        console.addLine("gamejoltuser モジュールが利用できません")
+        return
+    end
+    console.addLine("GameJolt User Data:")
+    console.addLine("  userid: " .. tostring(gamejoltuser.userid or ""))
+    console.addLine("  autologin: " .. tostring(gamejoltuser.autologin == true))
 end
 
 console.debugCommands = {}
@@ -381,13 +314,14 @@ local commandSpecs = {
     help = {desc = "ヘルプを表示", handler = function() console.showHelp() end},
     debug_printerror = {desc = "エラー表示を切り替え", handler = function() toggleFlag("debug_printerror") end},
     gamejoltuser_data = {desc = "GameJoltユーザーデータを表示", handler = function() showGameJoltUserData() end},
-    watchuser = {desc = "ユーザー制限がある楽曲を表示", handler = function(args) showWatchwuserInfo(args) end}
+    watchuser = {desc = "ユーザー制限がある楽曲を表示", handler = function(args) showWatchwuserInfo(args) end},
+    allsongs = {desc = "全楽曲を表示 (引数: true/false)", handler = function(args) console.allsongs(args) end}
 }
 
 local availableCommands = {}
 for name, spec in pairs(commandSpecs) do
     if spec and type(spec) == "table" then
-        table.insert(availableCommands, {name = name, desc = spec.desc or ""})
+        table_insert(availableCommands, {name = name, desc = spec.desc or ""})
     end
 end
 
@@ -402,7 +336,7 @@ local function getMatchingCommands(prefix)
     local results = {}
     for _, cmd in ipairs(availableCommands) do
         if cmd.name:find(lower, 1, true) then
-            table.insert(results, cmd)
+            table_insert(results, cmd)
         end
     end
     return results
@@ -427,16 +361,21 @@ function console.getProgramName(num)
     return programNames[num] or tostring(num)
 end
 
+
+
+
+
+
 function console.getCurrentProgramSummary()
     local currentNum = _G.programnumber or -1
     local currentName = console.getProgramName(currentNum)
-    return string.format("program=%s(%d)", currentName, currentNum)
+    return string_format("program=%s(%d)", currentName, currentNum)
 end
 
 function console.showHelp()
     console.addLine("利用可能なコマンド:")
     for _, cmd in ipairs(availableCommands) do
-        console.addLine(string.format("  %-24s %s", cmd.name, cmd.desc))
+        console.addLine(string_format("  %-24s %s", cmd.name, cmd.desc))
     end
 end
 
@@ -493,9 +432,10 @@ end
 
 function console.addLine(text)
     local line = tostring(text or "")
-    table.insert(console.lines, line)
-    while #console.lines > console.maxLines do
-        table.remove(console.lines, 1)
+    local lines = console.lines
+    table_insert(lines, line)
+    while #lines > console.maxLines do
+        table_remove(lines, 1)
     end
 end
 
@@ -576,73 +516,94 @@ function console.textinput(t)
     console.input = console.input .. t
 end
 
+
+
+
+
+
+
+
+
+
+
+
 function console.draw()
-    local width = _G.displayx or love.graphics.getWidth()
-    local height = _G.displayy or love.graphics.getHeight()
+    local gfx = love.graphics
+    local width = _G.displayx or gfx.getWidth()
+    local height = _G.displayy or gfx.getHeight()
     local font = getConsoleFont()
-    local oldFont = love.graphics.getFont()
+    local oldFont = gfx.getFont()
     if font then
-        love.graphics.setFont(font)
+        gfx.setFont(font)
     end
-    local lineHeight = (font and font:getHeight() or 20) + 4
-    local leftWidth = math.max(280, math.floor(width * 0.28))
+    local fontHeight = font and font:getHeight() or 20
+    local lineHeight = fontHeight + 4
+    local descHeight = font and font:getHeight() or 16
+    local leftWidth = math_max(280, math_floor(width * 0.28))
 
-    love.graphics.push()
-    love.graphics.setColor(0, 0, 0, 0.88)
-    love.graphics.rectangle("fill", 0, 0, width, height)
-
-    love.graphics.setColor(0.1, 0.1, 0.1, 0.95)
-    love.graphics.rectangle("fill", 10, 10, leftWidth - 20, height - 80)
-
-    love.graphics.setColor(1, 1, 1, 0.95)
-    love.graphics.print("Command suggestions", 16, 14)
-    love.graphics.setColor(0.5, 0.5, 0.5, 0.9)
-    love.graphics.line(16, 34, leftWidth - 16, 34)
-
-    local matches = getMatchingCommands(console.input)
+    local inputText = console.input
+    local trimmedInput = trim(inputText)
+    local matches = getMatchingCommands(inputText)
     local suggestY = 40
-    if trim(console.input) == "" then
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.9)
-        love.graphics.print("Type to search commands...", 16, suggestY)
+
+    gfx.push()
+    gfx.setColor(0, 0, 0, 0.88)
+    gfx.rectangle("fill", 0, 0, width, height)
+
+    gfx.setColor(0.1, 0.1, 0.1, 0.95)
+    gfx.rectangle("fill", 10, 10, leftWidth - 20, height - 80)
+
+    gfx.setColor(1, 1, 1, 0.95)
+    gfx.print("Command suggestions", 16, 14)
+    gfx.setColor(0.5, 0.5, 0.5, 0.9)
+    gfx.line(16, 34, leftWidth - 16, 34)
+
+    if trimmedInput == "" then
+        gfx.setColor(0.7, 0.7, 0.7, 0.9)
+        gfx.print("Type to search commands...", 16, suggestY)
         suggestY = suggestY + lineHeight
     else
-        for i = 1, math.min(#matches, math.floor((height - 120) / (lineHeight * 2))) do
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print(matches[i].name, 16, suggestY)
-            love.graphics.setColor(0.8, 0.8, 0.8, 0.8)
-            love.graphics.print(matches[i].desc, 18, suggestY + (font and font:getHeight() or 16))
+        local suggestionLimit = math_min(#matches, math_floor((height - 120) / (lineHeight * 2)))
+        for i = 1, suggestionLimit do
+            gfx.setColor(1, 1, 1, 1)
+            gfx.print(matches[i].name, 16, suggestY)
+            gfx.setColor(0.8, 0.8, 0.8, 0.8)
+            gfx.print(matches[i].desc, 18, suggestY + descHeight)
             suggestY = suggestY + lineHeight * 2
         end
         if #matches == 0 then
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print("No matching command", 16, suggestY)
+            gfx.setColor(1, 1, 1, 1)
+            gfx.print("No matching command", 16, suggestY)
             suggestY = suggestY + lineHeight
         end
     end
 
-    love.graphics.setColor(1, 1, 1, 0.95)
-    love.graphics.print("Console output", leftWidth + 16, 14)
-    love.graphics.setColor(0.5, 0.5, 0.5, 0.9)
-    love.graphics.line(leftWidth + 16, 34, width - 16, 34)
+    gfx.setColor(1, 1, 1, 0.95)
+    gfx.print("Console output", leftWidth + 16, 14)
+    gfx.setColor(0.5, 0.5, 0.5, 0.9)
+    gfx.line(leftWidth + 16, 34, width - 16, 34)
 
     local y = 40
-    local maxLines = math.floor((height - 120) / lineHeight)
-    local start = math.max(1, #console.lines - maxLines + 1)
+    local maxLines = math_floor((height - 120) / lineHeight)
+    local start = math_max(1, #console.lines - maxLines + 1)
     for i = start, #console.lines do
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.print(console.lines[i], leftWidth + 16, y)
+        gfx.setColor(1, 1, 1, 1)
+        gfx.print(console.lines[i], leftWidth + 16, y)
         y = y + lineHeight
     end
 
-    love.graphics.setColor(0.15, 0.15, 0.15, 0.98)
-    love.graphics.rectangle("fill", 10, height - 50, width - 20, 40)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("> " .. console.input, 16, height - 42)
+    gfx.setColor(0.15, 0.15, 0.15, 0.98)
+    gfx.rectangle("fill", 10, height - 50, width - 20, 40)
+    gfx.setColor(1, 1, 1, 1)
+    gfx.print("> " .. inputText, 16, height - 42)
 
-    love.graphics.pop()
+    gfx.pop()
     if oldFont then
-        love.graphics.setFont(oldFont)
+        gfx.setFont(oldFont)
     end
 end
 
 return console
+
+
+

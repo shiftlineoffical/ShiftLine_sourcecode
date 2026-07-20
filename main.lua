@@ -1,30 +1,56 @@
-﻿--[[
-変数表
-play:play.luaの内容
-dotfont:ドットフォント
-logofont:ロゴフォント
-playdata:ゲームプレイ中の難易度・曲名・スコア等データ
-discordRPC:Discord Rich Presenceのモジュール
-appId:DiscordアプリケーションID
-presence:Discord Rich Presenceの状態を表すテーブル
-discordEnabled:Discord Rich Presenceが有効かどうかのフラグ
-nextPresenceUpdate:次にDiscord Rich Presenceを更新する時刻
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+---@diagnostic disable: undefined-field, undefined-global, duplicate-set-field, undefined-doc-name, unused-local
+---@type any
+local _G = _G
+---@type any
+local love = love
+---@class love
+---@class _G
+
+--[[
+螟画焚陦ｨ
+play:play.lua縺ｮ蜀・ｮｹ
+dotfont:繝峨ャ繝医ヵ繧ｩ繝ｳ繝・
+logofont:繝ｭ繧ｴ繝輔か繝ｳ繝・
+playdata:繧ｲ繝ｼ繝繝励Ξ繧､荳ｭ縺ｮ髮｣譏灘ｺｦ繝ｻ譖ｲ蜷阪・繧ｹ繧ｳ繧｢遲峨ョ繝ｼ繧ｿ
+discordRPC:Discord Rich Presence縺ｮ繝｢繧ｸ繝･繝ｼ繝ｫ
+appId:Discord繧｢繝励Μ繧ｱ繝ｼ繧ｷ繝ｧ繝ｳID
+presence:Discord Rich Presence縺ｮ迥ｶ諷九ｒ陦ｨ縺吶ユ繝ｼ繝悶Ν
+discordEnabled:Discord Rich Presence縺梧怏蜉ｹ縺九←縺・°縺ｮ繝輔Λ繧ｰ
+nextPresenceUpdate:谺｡縺ｫDiscord Rich Presence繧呈峩譁ｰ縺吶ｋ譎ょ綾
 
 
 
 
 
 
-gamejoltデータの受け取り方
-App.setLogin(data)を呼び出すことで、dataテーブルの内容がApp.loginに反映される。
-dataテーブルの構造は以下の通り:
+gamejolt繝・・繧ｿ縺ｮ蜿励￠蜿悶ｊ譁ｹ
+App.setLogin(data)繧貞他縺ｳ蜃ｺ縺吶％縺ｨ縺ｧ縲‥ata繝・・繝悶Ν縺ｮ蜀・ｮｹ縺窟pp.login縺ｫ蜿肴丐縺輔ｌ繧九・
+data繝・・繝悶Ν縺ｮ讒矩縺ｯ莉･荳九・騾壹ｊ:
 {
-    authenticated: boolean, // 認証されているかどうか
-    userid: string, // ユーザーID
-    user_token: string, // ユーザートークン
-    username: string, // ユーザー名
-    userId: string, // ユーザーID（useridと同じ内容）
-    avatarUrl: string, // アバターURL
+    authenticated: boolean, // 隱崎ｨｼ縺輔ｌ縺ｦ縺・ｋ縺九←縺・°
+    userid: string, // 繝ｦ繝ｼ繧ｶ繝ｼID
+    user_token: string, // 繝ｦ繝ｼ繧ｶ繝ｼ繝医・繧ｯ繝ｳ
+    username: string, // 繝ｦ繝ｼ繧ｶ繝ｼ蜷・
+    userId: string, // 繝ｦ繝ｼ繧ｶ繝ｼID・・serid縺ｨ蜷後§蜀・ｮｹ・・
+    avatarUrl: string, // 繧｢繝舌ち繝ｼURL
 }
 
 
@@ -58,18 +84,9 @@ end
 
 
 
-local gamejoltusername=""
-local gamejoltusericon
 
 
 
-
-
-
-
-
-
-local score
 
 
 local discordRPC = {}
@@ -124,7 +141,7 @@ hs=1
 
 
 
---楽曲メタ
+--讌ｽ譖ｲ繝｡繧ｿ
 jacket =""
 level =""
 name = ""
@@ -140,7 +157,7 @@ score = {
 }
 
 
---ログ関連
+--繝ｭ繧ｰ髢｢騾｣
 log=require("log")
 log.outfile = "ShiftLine.log"
 log.usecolor = true
@@ -187,7 +204,7 @@ end
 local function getSongTitleForPresence()
     local title = gamestatus
     if type(title) ~= "string" or title == "" then
-        return "起動中"
+        return "襍ｷ蜍穂ｸｭ"
     end
     return title
 end
@@ -204,19 +221,19 @@ function setDiscordJoinSecret(joinSecret)
 end
 
 function discordRPC.ready(userId, username, discriminator, avatar)
-    log.info(string.format("Discord: ready (%s, %s, %s, %s)", userId, username, discriminator, avatar))
+    log.info(string_format("Discord: ready (%s, %s, %s, %s)", userId, username, discriminator, avatar))
 end
 
 function discordRPC.disconnected(errorCode, message)
-    log.warn(string.format("Discord: disconnected (%d: %s)", errorCode, message))
+    log.warn(string_format("Discord: disconnected (%d: %s)", errorCode, message))
 end
 
 function discordRPC.errored(errorCode, message)
-    log.error(string.format("Discord: error (%d: %s)", errorCode, message))
+    log.error(string_format("Discord: error (%d: %s)", errorCode, message))
 end
 
 function discordRPC.joinGame(joinSecret)
-    log.info(string.format("Discord: join (%s)", joinSecret))
+    log.info(string_format("Discord: join (%s)", joinSecret))
     if type(joinSecret) == "string" and joinSecret ~= "" then
         main.pendingDiscordJoinSecret = joinSecret
         onlineMode = true
@@ -225,17 +242,18 @@ function discordRPC.joinGame(joinSecret)
 end
 
 function discordRPC.spectateGame(spectateSecret)
-    log.info(string.format("Discord: spectate (%s)", spectateSecret))
+    log.info(string_format("Discord: spectate (%s)", spectateSecret))
 end
 
 function discordRPC.joinRequest(userId, username, discriminator, avatar)
-    log.info(string.format("Discord: join request (%s, %s, %s, %s)", userId, username, discriminator, avatar))
+    log.info(string_format("Discord: join request (%s, %s, %s, %s)", userId, username, discriminator, avatar))
     discordRPC.respond(userId, "yes")
 end
 
 
 
 
+---@diagnostic disable-next-line: undefined-field
 function love.load()
     love.audio.setVolume(0.5)
     -- Set up logging to file
@@ -245,7 +263,7 @@ function love.load()
     math.randomseed(os.time())
     reporter.resendIfExists()
 
-    -- マウスカーソル
+    -- 繝槭え繧ｹ繧ｫ繝ｼ繧ｽ繝ｫ
     cursor = love.mouse.newCursor("img/cursor.png", 0, 0)
     love.mouse.setCursor(cursor)
 
@@ -262,7 +280,7 @@ function love.load()
             discordEnabled = true
         else
             discordEnabled = false
-            log.error(string.format("Discord: initialize failed (%s)", tostring(err)))
+            log.error(string_format("Discord: initialize failed (%s)", tostring(err)))
         end
     else
         discordEnabled = false
@@ -276,7 +294,7 @@ function love.load()
     else
         partyMax = 1
     end
-    local state = "ソロプレイ中"
+    local state = "繧ｽ繝ｭ繝励Ξ繧､荳ｭ"
 
 
 
@@ -302,6 +320,7 @@ function love.load()
     nextPresenceUpdate = 0
 end
 
+---@diagnostic disable-next-line: undefined-field
 function love.update(dt)
 
 
@@ -335,28 +354,28 @@ function love.update(dt)
 
 
 
-    --プログラムの移行
+    --繝励Ο繧ｰ繝ｩ繝縺ｮ遘ｻ陦・
     if programnumber == 0 and openingloader.endprocess then
         changeProgram(1)
         
     elseif programnumber == 1 and opening.endprocess then
         changeProgram(2)
-    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 0 then--タイトルへ
+    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 0 then--繧ｿ繧､繝医Ν縺ｸ
         changeProgram(1)
-    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 1 then--ソロ楽曲セレクト
+    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 1 then--繧ｽ繝ｭ讌ｽ譖ｲ繧ｻ繝ｬ繧ｯ繝・
         changeProgram(3)
-    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 2 then--ストーリーモード
+    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 2 then--繧ｹ繝医・繝ｪ繝ｼ繝｢繝ｼ繝・
         storyMode =true
         changeProgram(6)
-    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 3 then--設定
+    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 3 then--險ｭ螳・
         changeProgram(5)
-    elseif programnumber == 6 and story.endprocess then--ストーリーセレクターから戻る
+    elseif programnumber == 6 and story.endprocess then--繧ｹ繝医・繝ｪ繝ｼ繧ｻ繝ｬ繧ｯ繧ｿ繝ｼ縺九ｉ謌ｻ繧・
         changeProgram(2)
     elseif programnumber ==3 and musicselect.endprocess and musicselect.selectmode == 1 then
         changeProgram(2)
     elseif programnumber ==3 and musicselect.endprocess and musicselect.selectmode == 2 then
         local playCollections = nil
-        musiclevel = musicselect.selectedLevelValue
+        musiclevel = musicselect.selectedDifficulty or "easy"
         musicname = musicselect.musicname
         musicartist = musicselect.musicartist
         local diffName = musicselect.selectedDifficulty
@@ -365,12 +384,12 @@ function love.update(dt)
         if play.setCollections and musicselect.getCollections then
             play.setCollections(playCollections or (musicselect.getPlayCollections and musicselect.getPlayCollections()) or musicselect.getCollections())
         end
-        gamestatus = string.format("%s [%s]", musicname, string.upper(diffName))
+        gamestatus = string_format("%s [%s]", musicname, string.upper(diffName))
         changeProgram(4)
     elseif programnumber ==3 and musicselect.endprocess and musicselect.selectmode == 8 then
-        -- エディタモードに遷移（Play + E キー）
+        -- 繧ｨ繝・ぅ繧ｿ繝｢繝ｼ繝峨↓驕ｷ遘ｻ・・lay + E 繧ｭ繝ｼ・・
         local playCollections = nil
-        musiclevel = musicselect.selectedLevelValue
+        musiclevel = musicselect.selectedDifficulty or "easy"
         musicname = musicselect.musicname
         musicartist = musicselect.musicartist
         local diffName = musicselect.selectedDifficulty
@@ -379,7 +398,7 @@ function love.update(dt)
         if play.setCollections and musicselect.getCollections then
             play.setCollections(playCollections or (musicselect.getPlayCollections and musicselect.getPlayCollections()) or musicselect.getCollections())
         end
-        gamestatus = string.format("%s [%s] (Editor)", musicname, string.upper(diffName))
+        gamestatus = string_format("%s [%s] (Editor)", musicname, string.upper(diffName))
         changeProgram(8)
     end
 
@@ -412,16 +431,18 @@ function love.update(dt)
 end
 
 
-love.mousepressed = function(x, y, button, istouch, presses)
+---@diagnostic disable-next-line: undefined-field
+function love.mousepressed(x, y, button, istouch, presses)
     if console and console.active then
         return
     end
 
-    if program.mousepressed then
+    if program and program.mousepressed then
         program.mousepressed(x, y, button, istouch, presses)
     end
 end
 
+---@diagnostic disable-next-line: undefined-field
 function love.mousereleased(x, y, button, istouch, presses)
     if console and console.active then
         return
@@ -432,6 +453,7 @@ function love.mousereleased(x, y, button, istouch, presses)
     end
 end
 
+---@diagnostic disable-next-line: undefined-field
 function love.wheelmoved(x, y)
     if console and console.active then
         return
@@ -445,6 +467,7 @@ end
 
 
 
+---@diagnostic disable-next-line: undefined-field
 function love.draw()
     programsettings()
     if program.draw then
@@ -465,6 +488,7 @@ function love.draw()
 
 end
 
+---@diagnostic disable-next-line: undefined-field
 function love.resize(w, h)
     if program and program.updateLayout then
         pcall(program.updateLayout, true)
@@ -476,7 +500,9 @@ end
 
 function programsettings()
     program = programs[programnumber]
+    ---@diagnostic disable-next-line: undefined-field
     _G.program = program
+    ---@diagnostic disable-next-line: undefined-field
     _G.programnumber = programnumber
 end
 
@@ -503,6 +529,7 @@ end
 
 
 
+---@diagnostic disable-next-line: undefined-field
 function love.quit()
     programsettings()
     if program.quit then
@@ -519,6 +546,7 @@ end
 
 
 
+---@diagnostic disable-next-line: undefined-field
 function love.errhand(msg)
     local trace = debug.traceback(tostring(msg), 2)
     reporter.report(msg, trace)
@@ -530,6 +558,7 @@ function love.errhand(msg)
     end
 end
 
+---@diagnostic disable-next-line: undefined-field
 function love.textinput(t)
     if console and console.active then
         if console.textinput then
@@ -545,6 +574,7 @@ end
 
 
 
+---@diagnostic disable-next-line: undefined-field
 function love.keypressed(key, scancode, isrepeat)
     if key == "f10" and console then
         console.toggle()
@@ -574,6 +604,7 @@ function love.keypressed(key, scancode, isrepeat)
     end
 end
 
+---@diagnostic disable-next-line: undefined-field
 function love.keyreleased(key, scancode)
     if console and console.active then
         if console.keyreleased then
@@ -589,6 +620,7 @@ end
 
 
 
+---@diagnostic disable-next-line: undefined-field
 function love.textedited(text, start, length)
     if program.textedited then
         program.textedited(text, start, length)
@@ -598,3 +630,5 @@ end
 
 
 return main
+
+

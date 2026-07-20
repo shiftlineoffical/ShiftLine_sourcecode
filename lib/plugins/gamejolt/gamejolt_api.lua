@@ -1,4 +1,23 @@
---[[
+﻿--[[
+
+local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
 
 example User, Trophy, Score and Tables:
 
@@ -54,13 +73,14 @@ local md5 = require("lib.plugins.gamejolt.md5")
 local json = require("lib.plugins.gamejolt.json")
 local http = require("socket.http")
 local log = require("log")
+local string_format = string.format
 
 local function urlEncode(str)
     if type(str) ~= "string" then
         return tostring(str or "")
     end
     return string.gsub(str, "([^%w%-_.~])", function(c)
-        return string.format("%%%02X", string.byte(c))
+        return string_format("%%%02X", string.byte(c))
     end)
 end
 
@@ -252,3 +272,5 @@ function _:data_store_global_getKeys()
 end
 
 return _
+
+

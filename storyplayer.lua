@@ -1,3 +1,24 @@
+﻿---@type any
+local _G = _G
+---@type any
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local storyplayer = {}
 local displayWidth, displayHeight = love.graphics.getDimensions()
 local font = nil
@@ -23,16 +44,17 @@ local scriptLanguageData = {}
 local scriptObjects = {}
 local scriptSprites = {}
 local scriptSource = nil
+local completeStory
 
 local log = require "log"
 local i18n = require "i18n"
 
 local function initFonts()
     if not font then
-        font = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", math.max(26, math.floor(displayHeight * 0.05)))
+        font = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", math_max(26, math_floor(displayHeight * 0.05)))
     end
     if not smallFont then
-        smallFont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", math.max(18, math.floor(displayHeight * 0.035)))
+        smallFont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", math_max(18, math_floor(displayHeight * 0.035)))
     end
 end
 
@@ -170,7 +192,7 @@ local function createScriptEnvironment()
             for i = 1, select("#", ...) do
                 parts[#parts + 1] = tostring(select(i, ...))
             end
-            log.info(table.concat(parts, "\t"))
+            log.info(table_concat(parts, "\t"))
         end,
         language = {
             addMulti = function(data)
@@ -192,7 +214,7 @@ local function createScriptEnvironment()
         },
         music = {
             setVolume = function(volume)
-                love.audio.setVolume(math.max(0, math.min(1, tonumber(volume) or 0)))
+                love.audio.setVolume(math_max(0, math_min(1, tonumber(volume) or 0)))
             end
         },
         shiftline = {
@@ -342,7 +364,7 @@ local function loadBackgroundImage()
     end
 end
 
-local function completeStory()
+completeStory = function()
     active = false
     if finishCallback then
         finishCallback()
@@ -462,21 +484,21 @@ function storyplayer.update(dt)
 end
 
 local function visibleText()
-    local count = math.floor(revealProgress)
+    local count = math_floor(revealProgress)
     if count < 1 then
         return ""
     end
     local text = currentLineText:sub(1, count)
-    -- UTF-8デコーディングエラーを防ぐため、不完全なUTF-8シーケンスを削除
+    -- UTF-8繝・さ繝ｼ繝・ぅ繝ｳ繧ｰ繧ｨ繝ｩ繝ｼ繧帝亟縺舌◆繧√∽ｸ榊ｮ悟・縺ｪUTF-8繧ｷ繝ｼ繧ｱ繝ｳ繧ｹ繧貞炎髯､
     while #text > 0 do
         local ok = pcall(function()
-            -- UTF-8検証：printf前に正しいかチェック
+            -- UTF-8讀懆ｨｼ・嗔rintf蜑阪↓豁｣縺励＞縺九メ繧ｧ繝・け
             local _ = text:byte(#text)
         end)
         if ok then
             break
         end
-        text = text:sub(1, -2)  -- 最後の1文字を削除
+        text = text:sub(1, -2)  -- 譛蠕後・1譁・ｭ励ｒ蜑企勁
     end
     return text
 end
@@ -484,7 +506,7 @@ end
 local function drawBackground()
     if backgroundImage then
         local iw, ih = backgroundImage:getDimensions()
-        local scale = math.max(displayWidth / iw, displayHeight / ih)
+        local scale = math_max(displayWidth / iw, displayHeight / ih)
         love.graphics.setColor(1, 1, 1)
         love.graphics.draw(backgroundImage, 0, 0, 0, scale, scale)
     else
@@ -521,12 +543,12 @@ local function drawStoryLine()
         end
         dialogue = arrowText
     else
-        charName, dialogue = currentLineText:match("^(.-)「(.*)」$")
+        charName, dialogue = currentLineText:match("^(.-)縲・.*)縲・")
     end
 
     if charName then
         local nameTrim = charName:match("^%s*(.-)%s*$") or ""
-        local isNarrationLabel = (nameTrim == "ナレーション" or nameTrim == "Narration" or nameTrim == "narration")
+        local isNarrationLabel = (nameTrim == "繝翫Ξ繝ｼ繧ｷ繝ｧ繝ｳ" or nameTrim == "Narration" or nameTrim == "narration")
         if isNarrationLabel then
             charName = nil
             dialogue = nil
@@ -534,7 +556,7 @@ local function drawStoryLine()
     end
 
     if dialogue and dialogue ~= "" then
-        local visibleDialogue = dialogue:sub(1, math.min(math.floor(revealProgress), #dialogue))
+        local visibleDialogue = dialogue:sub(1, math_min(math_floor(revealProgress), #dialogue))
         local boxHeight = displayHeight * 0.32
         local x = 40
         local y = displayHeight - boxHeight - 40
@@ -560,11 +582,11 @@ local function drawStoryLine()
         local w = displayWidth - 120
         drawTextFrame(x, y, w, boxHeight)
 
-        love.graphics.setFont(font)
+        love.graphics.setFont(font or love.graphics.getFont())
         love.graphics.setColor(1, 1, 0.95)
         love.graphics.printf(visible, x + 30, y + 24, w - 60, "left")
 
-        love.graphics.setFont(smallFont)
+        love.graphics.setFont(smallFont or love.graphics.getFont())
         love.graphics.setColor(0.75, 0.75, 0.85)
         love.graphics.printf("Press Space/Enter to continue", x + 30, y + boxHeight - 34, w - 60, "right")
     end
@@ -578,12 +600,19 @@ function storyplayer.draw()
     updateLayout()
     drawBackground()
 
-    love.graphics.setFont(smallFont)
+    if not font or not smallFont then
+        initFonts()
+    end
+    if not font or not smallFont then
+        initFonts()
+    end
+    love.graphics.setFont(smallFont or love.graphics.getFont())
     love.graphics.setColor(0.85, 0.85, 0.85)
-    love.graphics.printf(storyData.metadata.title or "Story", 40, 30, displayWidth - 80, "left")
+    local storyTitle = storyData and storyData.metadata and storyData.metadata.title or "Story"
+    love.graphics.printf(storyTitle, 40, 30, displayWidth - 80, "left")
 
-    local totalLines = storyData.lines and #storyData.lines or 0
-    local lineLabel = storyData.scriptSource and "Script" or string.format("%d / %d", currentLineIndex, totalLines)
+    local totalLines = storyData and storyData.lines and #storyData.lines or 0
+    local lineLabel = (storyData and storyData.scriptSource) and "Script" or string_format("%d / %d", currentLineIndex, totalLines)
     love.graphics.setColor(0.7, 0.7, 0.7)
     love.graphics.printf(lineLabel, 40, 64, displayWidth - 80, "left")
 
@@ -642,3 +671,5 @@ function storyplayer.mousepressed(x, y, button)
 end
 
 return storyplayer
+
+

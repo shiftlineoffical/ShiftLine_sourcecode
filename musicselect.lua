@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local musicselect={}
 local log = require "log"
 local audiocache = require "audiocache"
@@ -6,6 +25,8 @@ local play = require "play"
 local i18n = require "i18n"
 local gamejolt = require "gamejolt"
 local gamejoltuser = require "gamejoltuser"
+local ui = require("lib.ui")
+local console= require "console"
 local collections = nil
 local filteredCollections = nil
 local musicfiles = nil
@@ -62,7 +83,7 @@ local difficultyLabelRatio = {
     custom = 0.9
 }
 
--- 難易度表示のフォーマット関数
+-- 髮｣譏灘ｺｦ陦ｨ遉ｺ縺ｮ繝輔か繝ｼ繝槭ャ繝磯未謨ｰ
 local function formatDifficultyLevel(levelValue)
     if not levelValue or levelValue == "" or levelValue == "--" then
         return "--"
@@ -88,7 +109,7 @@ local function formatDifficultyLevel(levelValue)
         return text
     end
 
-    local base = math.floor(num)
+    local base = math_floor(num)
     if (num - base) >= 0.5 then
         return tostring(base) .. "+"
     end
@@ -108,7 +129,7 @@ local difficultyZonesCache = nil
 local difficultyZonesCacheWidth = 0
 local difficultyZonesCacheHeight = 0
 
--- UTF-8 文字列をクリーンにする関数
+-- UTF-8 譁・ｭ怜・繧偵け繝ｪ繝ｼ繝ｳ縺ｫ縺吶ｋ髢｢謨ｰ
 local function cleanUTF8(str)
     if not str then return "" end
     local cleaned = {}
@@ -154,7 +175,7 @@ local function cleanUTF8(str)
             i = i + 1
         end
     end
-    return table.concat(cleaned)
+    return table_concat(cleaned)
 end
 
 local function normalizeGenres(rawGenre)
@@ -244,20 +265,29 @@ local function chartHasGenre(rawGenre, targetGenre)
 end
 
 local displayWidth, displayHeight = love.graphics.getDimensions()
+local backPoly = nil
+local backSlope = nil
 
 local function refreshMusicselectFonts()
-    local titleSize = math.max(20, math.floor(displayHeight * 0.04))
-    local selectTitleSize = math.max(26, math.floor(displayHeight * 0.06))
-    local artistSize = math.max(16, math.floor(displayHeight * 0.035))
-    local selectArtistSize = math.max(20, math.floor(displayHeight * 0.045))
-    local uiFontSize = math.max(18, math.floor(displayWidth * 0.05))
+    local titleSize = math_max(20, math_floor(displayHeight * 0.04))
+    local selectTitleSize = math_max(26, math_floor(displayHeight * 0.06))
+    local artistSize = math_max(16, math_floor(displayHeight * 0.035))
+    local selectArtistSize = math_max(20, math_floor(displayHeight * 0.045))
+    local uiFontSize = math_max(18, math_floor(displayWidth * 0.05))
 
     titlefont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Regular.ttf", titleSize)
     selecttitlefont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Regular.ttf", selectTitleSize)
     artistfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", artistSize)
     selectartistfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", selectArtistSize)
-    backbutton = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", uiFontSize)
+        backbutton = love.graphics.newFont("lib/data/fonts/NotoSansJP-Regular.ttf", uiFontSize)
     levelfont = love.graphics.newFont("lib/data/fonts/851H-kktt_004.ttf", uiFontSize)
+        -- compute back button parallelogram for current size
+        backSlope = -(displayWidth / 20) / (displayHeight * 0.9)
+        local bx1 = 0
+        local bx2 = displayWidth / 10
+        local by1 = displayHeight / 10 * 8.6
+        local by2 = displayHeight
+        backPoly = ui.parallelogramPoly(bx1, bx2, by1, by2, backSlope)
 end
 
 local function updateDisplaySize()
@@ -265,6 +295,13 @@ local function updateDisplaySize()
     if w ~= displayWidth or h ~= displayHeight then
         displayWidth, displayHeight = w, h
         refreshMusicselectFonts()
+        -- compute back button parallelogram similar to storyselecter
+        backSlope = -(displayWidth / 20) / (displayHeight * 0.9)
+        local x1 = 0
+        local x2 = displayWidth / 10
+        local y1 = displayHeight / 10 * 8.6
+        local y2 = displayHeight
+        backPoly = ui.parallelogramPoly(x1, x2, y1, y2, backSlope)
         return true
     end
     return false
@@ -275,7 +312,7 @@ musicselect.cardBounds = {}
 local selectedGenre = "All"
 local cardTopIndex = 1
 
--- フェード
+-- 繝輔ぉ繝ｼ繝・
 local fadeAlpha = 0
 local fading = false
 local fadeSpeed = 1.5
@@ -328,8 +365,8 @@ local function setSelectedDifficulty(diff)
     end
 end
 
--- 指定インデックスに対して現在の selectedDifficulty が有効か検査し、無効なら
--- 最初に見つかる有効な難易度へ切替して selectedLevelValue を設定する。
+-- 謖・ｮ壹う繝ｳ繝・ャ繧ｯ繧ｹ縺ｫ蟇ｾ縺励※迴ｾ蝨ｨ縺ｮ selectedDifficulty 縺梧怏蜉ｹ縺区､懈渊縺励∫┌蜉ｹ縺ｪ繧・
+-- 譛蛻昴↓隕九▽縺九ｋ譛牙柑縺ｪ髮｣譏灘ｺｦ縺ｸ蛻・崛縺励※ selectedLevelValue 繧定ｨｭ螳壹☆繧九・
 local function ensureSelectedDifficultyValidForIndex(idx)
     idx = tonumber(idx) or musicselect.selectedIndex
     if not idx or idx <= 0 then return end
@@ -366,7 +403,7 @@ local function getDifficultyZonePolygons()
     local rightX = displayWidth
     local zoneCount = #difficultyOrder
     local zoneWidth = (rightX - leftX) / zoneCount
-    local skew = -displayWidth * 0.02 -- 左下に傾く
+    local skew = -displayWidth * 0.02 -- 蟾ｦ荳九↓蛯ｾ縺・
 
     local zones = {}
     for i, diff in ipairs(difficultyOrder) do
@@ -374,7 +411,7 @@ local function getDifficultyZonePolygons()
         local toX = leftX + i * zoneWidth
 
         if i == 1 then
-            -- EASYオフセット
+            -- EASY繧ｪ繝輔そ繝・ヨ
             zones[diff] = {
                 fromX, levelTopY,
                 toX, levelTopY,
@@ -453,7 +490,7 @@ local function buildAudioSource(entry, requestedVolume)
         end)
     end
 
-    ---@param sounddata love.SoundData|nil
+    ---@param sounddata love.SoundData|love.Data|nil
     ---@return love.Source|nil
     local function createSourceFromSoundData(sounddata)
         if not sounddata then
@@ -467,7 +504,7 @@ local function buildAudioSource(entry, requestedVolume)
             if requestedVolume > 1.0 then
                 source:setVolume(1.0)
             else
-                source:setVolume(math.max(requestedVolume, 0.0))
+                source:setVolume(math_max(requestedVolume, 0.0))
             end
             return source
         end
@@ -476,6 +513,7 @@ local function buildAudioSource(entry, requestedVolume)
 
     local cachedSoundData = audiocache.getPreloadedSoundData(collections, entry)
     if cachedSoundData then
+        ---@type love.SoundData|love.Data|nil
         local sourceSoundData = cachedSoundData
         if requestedVolume > 1.0 then
             local okClone, clonedSoundData = pcall(function()
@@ -498,6 +536,7 @@ local function buildAudioSource(entry, requestedVolume)
         local okFile, fileData = pcall(love.filesystem.newFileData, entry.data, entry.name or "audio")
         if okFile and fileData then
             local okSound, soundData = pcall(function()
+                ---@diagnostic disable-next-line: param-type-mismatch
                 return love.sound.newSoundData(fileData)
             end)
             if okSound and soundData then
@@ -522,7 +561,7 @@ local function buildAudioSource(entry, requestedVolume)
 
         local ok2, source = pcall(love.audio.newSource, entry, "stream")
         if ok2 and source then
-            source:setVolume(math.max(math.min(requestedVolume, 1.0), 0.0))
+            source:setVolume(math_max(math_min(requestedVolume, 1.0), 0.0))
             return source
         end
 
@@ -534,7 +573,7 @@ local function buildAudioSource(entry, requestedVolume)
 end
 
 local function formatAudioCacheVolume(requestedVolume)
-    return string.format("%.6f", tonumber(requestedVolume) or 1.0)
+    return string_format("%.6f", tonumber(requestedVolume) or 1.0)
 end
 
 local function getAudioSourceCacheKey(entry, requestedVolume)
@@ -687,7 +726,7 @@ buildImageObject = function(entry)
         end
 
         if not fileContent then
-            -- 絶対パス（AppData など）の場合、io.open を使用してファイルを読み込む
+            -- 邨ｶ蟇ｾ繝代せ・・ppData 縺ｪ縺ｩ・峨・蝣ｴ蜷医（o.open 繧剃ｽｿ逕ｨ縺励※繝輔ぃ繧､繝ｫ繧定ｪｭ縺ｿ霎ｼ繧
             if imagePath:match("^[A-Za-z]:") or imagePath:match("^/") then
                 local f = io.open(imagePath, "rb")
                 if f then
@@ -725,7 +764,7 @@ buildImageObject = function(entry)
             end
         end
     elseif type(entry) == "string" then
-        -- 絶対パス（AppData など）の場合、io.open を使用してファイルを読み込む
+        -- 邨ｶ蟇ｾ繝代せ・・ppData 縺ｪ縺ｩ・峨・蝣ｴ蜷医（o.open 繧剃ｽｿ逕ｨ縺励※繝輔ぃ繧､繝ｫ繧定ｪｭ縺ｿ霎ｼ繧
         local fileContent = nil
 
         local function path_to_save_relative(p)
@@ -850,7 +889,7 @@ local function rebuildPreviewAudio()
     for i = 1, count do
         local audioEntry = musicfiles and musicfiles[i]
         local vol = tonumber(chartdata.volume and chartdata.volume[i]) or 1.0
-        vol = math.max(vol, 0.0)
+        vol = math_max(vol, 0.0)
 
         music.entries[i] = audioEntry
         music.demostart[i] = tonumber(chartdata.demostart and chartdata.demostart[i]) or 0
@@ -945,6 +984,13 @@ local function getJacketImage(index)
     end
 
     local entry = imagefiles and imagefiles[index]
+    if not entry then
+        jacketMap[index] = false
+        if jacketLoadFailed then
+            jacketLoadFailed[index] = true
+        end
+        return nil
+    end
     local img = buildImageObject(entry)
     if img then
         jacketMap[index] = img
@@ -1053,12 +1099,12 @@ local function applySelectedGenreFilter()
         local watchuser = normalizeWatchusers(allChartDataCache and allChartDataCache.watchuser and allChartDataCache.watchuser[i] or {})
         local restrictedByWatchuser = false
 
-        -- watchuser制限がある楽曲は常に表示から除外
+        -- watchuser蛻ｶ髯舌′縺ゅｋ讌ｽ譖ｲ縺ｯ蟶ｸ縺ｫ陦ｨ遉ｺ縺九ｉ髯､螟・
         if #watchuser > 0 then
             restrictedByWatchuser = true
         end
 
-        -- 解析された難易度ブロックがあれば表示対象にする
+        -- 隗｣譫舌＆繧後◆髮｣譏灘ｺｦ繝悶Ο繝・け縺後≠繧後・陦ｨ遉ｺ蟇ｾ雎｡縺ｫ縺吶ｋ
         local hasAnyDifficulty = true
 
         if chartHasGenre(genres, selectedGenre) and not restrictedByWatchuser and hasAnyDifficulty then
@@ -1117,7 +1163,7 @@ local function getCardLayout()
     local availableHeight = cardBottomY - cardStartY
 
     if cardStepY > 0 and availableHeight > 0 then
-        visibleCount = math.floor((availableHeight - cardH) / cardStepY) + 1
+        visibleCount = math_floor((availableHeight - cardH) / cardStepY) + 1
     end
     if visibleCount < 1 then
         visibleCount = 1
@@ -1143,7 +1189,7 @@ local function syncCardTopIndex(itemCount)
     end
 
     local layout = getCardLayout()
-    local maxTop = math.max(1, count - layout.visibleCount + 1)
+    local maxTop = math_max(1, count - layout.visibleCount + 1)
     cardTopIndex = clamp(cardTopIndex, 1, maxTop)
 
     local selected = clamp(musicselect.selectedIndex or 1, 1, count)
@@ -1273,8 +1319,8 @@ function musicselect.reloadCollectionsForPlay()
         return nil
     end
 
-    log.info(string.format(
-        "[play準備] 選択曲のみをメモリから引き渡します: audio=%d charts=%d images=%d",
+    log.info(string_format(
+        "[play貅門ｙ] 驕ｸ謚樊峇縺ｮ縺ｿ繧偵Γ繝｢繝ｪ縺九ｉ蠑輔″貂｡縺励∪縺・ audio=%d charts=%d images=%d",
         #(selectedPlayCollections.audio or {}),
         #(selectedPlayCollections.charts or {}),
         #(selectedPlayCollections.images or {})
@@ -1661,7 +1707,7 @@ function sfbloadercatcher()
     musicselect.setCollections(collections)
 
     if verboseSfbLogs then
-        log.debug(string.format("[SFB] filtered audio=%d, charts=%d, images=%d",
+        log.debug(string_format("[SFB] filtered audio=%d, charts=%d, images=%d",
             (musicfiles and #musicfiles) or 0,
             (chartfiles and #chartfiles) or 0,
             (imagefiles and #imagefiles) or 0))
@@ -1739,7 +1785,7 @@ function musicselect.update(dt)
         end
     end
 
-    -- レベル選択用データ更新: 実際のレベル値を反映する（存在しない場合は "--" を表示）
+    -- 繝ｬ繝吶Ν驕ｸ謚樒畑繝・・繧ｿ譖ｴ譁ｰ: 螳滄圀縺ｮ繝ｬ繝吶Ν蛟､繧貞渚譏縺吶ｋ・亥ｭ伜惠縺励↑縺・ｴ蜷医・ "--" 繧定｡ｨ遉ｺ・・
     local chartdata = chartreader()
     do
         local idx = index
@@ -1752,7 +1798,7 @@ function musicselect.update(dt)
         end
     end
 
-    -- タイトル名スクロール制御
+    -- 繧ｿ繧､繝医Ν蜷阪せ繧ｯ繝ｭ繝ｼ繝ｫ蛻ｶ蠕｡
     local title = (chartdata.name and chartdata.name[index]) or ""
     titleScrollTextWidth = selecttitlefont and selecttitlefont:getWidth(title) or 0
     local titleX = displayWidth/40*21
@@ -1775,7 +1821,7 @@ function musicselect.update(dt)
         titleScrollWait = 0
     end
 
-    -- アーティスト名スクロール制御
+    -- 繧｢繝ｼ繝・ぅ繧ｹ繝亥錐繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ蛻ｶ蠕｡
     local artist = (chartdata.artist and chartdata.artist[index]) or ""
     artistScrollTextWidth = selectartistfont and selectartistfont:getWidth(artist) or 0
     local artistX = displayWidth/40*21
@@ -1798,7 +1844,7 @@ function musicselect.update(dt)
         artistScrollWait = 0
     end
 
-    -- リスト内のアーティスト名スクロールオフセット
+    -- 繝ｪ繧ｹ繝亥・縺ｮ繧｢繝ｼ繝・ぅ繧ｹ繝亥錐繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ繧ｪ繝輔そ繝・ヨ
     listArtistScrollOffset = listArtistScrollOffset + listArtistScrollSpeed * dt
     if listArtistScrollOffset > 2000 then
         listArtistScrollOffset = 0
@@ -1806,7 +1852,7 @@ function musicselect.update(dt)
 
 
 
-    -- URLを開く
+    -- URL繧帝幕縺・
     if openURL == true then
         local url = (chartdata.url and chartdata.url[index]) or ""
         if url ~= "" then
@@ -1854,10 +1900,9 @@ function musicselect.mousepressed(x, y, button)
         end
     end
 
-    local backX = displayWidth / 20
-    local backY = displayHeight / 10 * 9
-    if x >= 0 and x <= backX and y >= backY and y <= displayHeight then
+    if backPoly and pointInConvexPolygon(x, y, backPoly) then
         musicselect.selectmode = 1
+        musicselect.endprocess = false
         fadeAlpha = 0
         fading = true
         return
@@ -1869,20 +1914,20 @@ function musicselect.mousepressed(x, y, button)
             musicselect.selectedIndex = rect.index
             syncCardTopIndex(getSelectableCount())
 
-            -- クリックした楽曲に対して、現在の選択難易度が存在しない場合は
-            -- 強制的に最初に見つかる有効な難易度へ切替える（確実に即時反映させる）
+            -- 繧ｯ繝ｪ繝・け縺励◆讌ｽ譖ｲ縺ｫ蟇ｾ縺励※縲∫樟蝨ｨ縺ｮ驕ｸ謚樣屮譏灘ｺｦ縺悟ｭ伜惠縺励↑縺・ｴ蜷医・
+            -- 蠑ｷ蛻ｶ逧・↓譛蛻昴↓隕九▽縺九ｋ譛牙柑縺ｪ髮｣譏灘ｺｦ縺ｸ蛻・崛縺医ｋ・育｢ｺ螳溘↓蜊ｳ譎ょ渚譏縺輔○繧具ｼ・
             do
                 local chartdata = chartreader()
                 local levelInfo = (chartdata.level and chartdata.level[musicselect.selectedIndex]) or {}
-                -- 詳細ログ: index と levelInfo の内容を出力
+                -- 隧ｳ邏ｰ繝ｭ繧ｰ: index 縺ｨ levelInfo 縺ｮ蜀・ｮｹ繧貞・蜉・
                 local infoParts = {}
                 for _, d in ipairs(difficultyOrder) do
                     local vv = levelInfo and levelInfo[d] or nil
                     infoParts[#infoParts+1] = d .. '=' .. tostring(vv)
                 end
-                log.debug("mousepressed: levelInfo for index=" .. tostring(musicselect.selectedIndex) .. " -> " .. table.concat(infoParts, ", "))
+                log.debug("mousepressed: levelInfo for index=" .. tostring(musicselect.selectedIndex) .. " -> " .. table_concat(infoParts, ", "))
 
-                -- 優先方針: まず現在の selectedDifficulty が当該曲で有効か確認。無効なら最初に見つかる有効な難易度へ切替。
+                -- 蜆ｪ蜈域婿驥・ 縺ｾ縺夂樟蝨ｨ縺ｮ selectedDifficulty 縺悟ｽ楢ｩｲ譖ｲ縺ｧ譛牙柑縺狗｢ｺ隱阪ら┌蜉ｹ縺ｪ繧画怙蛻昴↓隕九▽縺九ｋ譛牙柑縺ｪ髮｣譏灘ｺｦ縺ｸ蛻・崛縲・
                 local curVal = (levelInfo and levelInfo[musicselect.selectedDifficulty]) or nil
                 if not (curVal and curVal ~= "") then
                     for _, diff in ipairs(difficultyOrder) do
@@ -1896,12 +1941,12 @@ function musicselect.mousepressed(x, y, button)
                         end
                     end
                 else
-                    -- 現在の選択難易度が有効なら表示を実際の値で更新
+                    -- 迴ｾ蝨ｨ縺ｮ驕ｸ謚樣屮譏灘ｺｦ縺梧怏蜉ｹ縺ｪ繧芽｡ｨ遉ｺ繧貞ｮ滄圀縺ｮ蛟､縺ｧ譖ｴ譁ｰ
                     musicselect.selectedLevelValue = curVal
                     log.debug("mousepressed: kept selected difficulty " .. tostring(musicselect.selectedDifficulty) .. " with value " .. tostring(curVal) .. " for index " .. tostring(musicselect.selectedIndex))
                 end
 
-                -- 有効な難易度が見つからなかった場合は -- を表示する
+                -- 譛牙柑縺ｪ髮｣譏灘ｺｦ縺瑚ｦ九▽縺九ｉ縺ｪ縺九▲縺溷ｴ蜷医・ -- 繧定｡ｨ遉ｺ縺吶ｋ
                 if not musicselect.selectedLevelValue or musicselect.selectedLevelValue == "" then
                     musicselect.selectedLevelValue = "--"
                     log.debug("mousepressed: no valid difficulty found for index=" .. tostring(musicselect.selectedIndex))
@@ -1912,7 +1957,7 @@ function musicselect.mousepressed(x, y, button)
         end
     end
 
-    -- ジャンルクリック判定
+    -- 繧ｸ繝｣繝ｳ繝ｫ繧ｯ繝ｪ繝・け蛻､螳・
     for i, g in ipairs(genreListCache) do
         local bx = 10
         local by = 100 + (i-1)*50
@@ -1925,12 +1970,12 @@ function musicselect.mousepressed(x, y, button)
         end
     end
 
-    -- 難易度背景の平行四辺形クリック判定
+    -- 髮｣譏灘ｺｦ閭梧勹縺ｮ蟷ｳ陦悟屁霎ｺ蠖｢繧ｯ繝ｪ繝・け蛻､螳・
     local difficultyZones = getDifficultyZonePolygons()
     for _, diff in ipairs(difficultyOrder) do
         local points = difficultyZones[diff]
         if points and pointInConvexPolygon(x, y, points) then
-            -- クリックされた難易度が現在の選択曲に存在するか確認する
+            -- 繧ｯ繝ｪ繝・け縺輔ｌ縺滄屮譏灘ｺｦ縺檎樟蝨ｨ縺ｮ驕ｸ謚樊峇縺ｫ蟄伜惠縺吶ｋ縺狗｢ｺ隱阪☆繧・
             local chartdata = chartreader()
             local levelInfo = (chartdata.level and chartdata.level[musicselect.selectedIndex]) or {}
             if levelValueExists(levelInfo, diff) then
@@ -1938,7 +1983,7 @@ function musicselect.mousepressed(x, y, button)
                 musicselect.selectedLevelValue = (levelInfo and levelInfo[diff]) or diff
                 return
             else
-                -- 存在しない難易度は無視せず、代わりに最初に見つかる有効な難易度へ切替する
+                -- 蟄伜惠縺励↑縺・屮譏灘ｺｦ縺ｯ辟｡隕悶○縺壹∽ｻ｣繧上ｊ縺ｫ譛蛻昴↓隕九▽縺九ｋ譛牙柑縺ｪ髮｣譏灘ｺｦ縺ｸ蛻・崛縺吶ｋ
                 for _, nd in ipairs(difficultyOrder) do
                     if levelValueExists(levelInfo, nd) then
                         setSelectedDifficulty(nd)
@@ -1962,7 +2007,7 @@ function musicselect.mousepressed(x, y, button)
         musicselect.musicartist = cleanUTF8(chartData.artist[musicselect.selectedIndex] or "")
         musicselect.level = chartData.level and chartData.level[musicselect.selectedIndex] or {}
         
-        -- E キーが押されていたら editor に遷移
+        -- E 繧ｭ繝ｼ縺梧款縺輔ｌ縺ｦ縺・◆繧・editor 縺ｫ驕ｷ遘ｻ
         if love.keyboard.isDown("e") then
             musicselect.selectmode = 8
         end
@@ -1981,7 +2026,7 @@ function musicselect.wheelmoved(x, y)
     local count = getSelectableCount()
     if count <= 0 then return end
 
-    local steps = math.max(1, math.floor(math.abs(y)))
+    local steps = math_max(1, math_floor(math.abs(y)))
     local delta = (y > 0) and -steps or steps
     local nextIndex = musicselect.selectedIndex or 1
     nextIndex = clamp(nextIndex + delta, 1, count)
@@ -2010,7 +2055,7 @@ function musiccard()
     musicselect.selectedIndex = selectedIndex
     syncCardTopIndex(itemCount)
 
-    -- ジャンルボタン描画（テキストを矩形内で垂直中央に揃える）
+    -- 繧ｸ繝｣繝ｳ繝ｫ繝懊ち繝ｳ謠冗判・医ユ繧ｭ繧ｹ繝医ｒ遏ｩ蠖｢蜀・〒蝙ら峩荳ｭ螟ｮ縺ｫ謠・∴繧具ｼ・
     for i, g in ipairs(genreListCache) do
         local x = 10
         local y = 100 + (i-1)*50
@@ -2029,14 +2074,14 @@ function musiccard()
         love.graphics.setFont(artistfont)
         local fh = (artistfont and artistfont:getHeight()) or 16
         local textX = x + 10
-        local textY = y + math.floor((btnH - fh) / 2)
+        local textY = y + math_floor((btnH - fh) / 2)
         love.graphics.print(g, textX, textY)
     end
 
 
     local layout = getCardLayout()
     local startIndex = cardTopIndex
-    local endIndex = math.min(itemCount, startIndex + layout.visibleCount - 1)
+    local endIndex = math_min(itemCount, startIndex + layout.visibleCount - 1)
     local cardX = layout.x
     local cardW = layout.w
     local cardH = layout.h
@@ -2066,7 +2111,7 @@ function musiccard()
                 local artistFH = artistfont and artistfont:getHeight() or 16
                 local innerPad = 6
                 local totalTextH = titleFH + artistFH + innerPad
-                local contentStartY = cardY + math.floor((cardH - totalTextH) / 2)
+                local contentStartY = cardY + math_floor((cardH - totalTextH) / 2)
 
                 local titleX = displayWidth/10*1.5 + jacket:getWidth() * scale
                 local titleY = contentStartY
@@ -2079,7 +2124,7 @@ function musiccard()
                 drawCardSingleLineText(artistfont, artistText, artistX, artistY, artistAreaW)
             end
         else
-            -- プレースホルダー表示
+            -- 繝励Ξ繝ｼ繧ｹ繝帙Ν繝繝ｼ陦ｨ遉ｺ
             love.graphics.setColor(0.25, 0.25, 0.25)
             love.graphics.rectangle("fill", cardX, cardY, cardW, cardH)
             love.graphics.setColor(1, 1, 1)
@@ -2089,7 +2134,7 @@ function musiccard()
             local artistFH = artistfont and artistfont:getHeight() or 16
             local innerPad = 6
             local totalTextH = titleFH + artistFH + innerPad
-            local contentStartY = cardY + math.floor((cardH - totalTextH) / 2)
+            local contentStartY = cardY + math_floor((cardH - totalTextH) / 2)
             drawCardSingleLineText(titlefont, titleText, cardX + 10, contentStartY, cardW - 20)
             drawCardSingleLineText(artistfont, artistText, cardX + 10, contentStartY + titleFH + innerPad, cardW - 20)
             love.graphics.setColor(1, 1, 0.7)
@@ -2105,14 +2150,14 @@ function musiccard()
         love.graphics.rectangle("line", cardX, cardY, cardW, cardH)
         row = row + 1
     end
-    --楽曲詳細
+    --讌ｽ譖ｲ隧ｳ邏ｰ
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(selecttitlefont)
-    -- 選択楽曲のジャケットを表示する領域を枠で描画
+    -- 驕ｸ謚樊･ｽ譖ｲ縺ｮ繧ｸ繝｣繧ｱ繝・ヨ繧定｡ｨ遉ｺ縺吶ｋ鬆伜沺繧呈棧縺ｧ謠冗判
     love.graphics.rectangle("line",displayWidth/2,0,displayWidth,displayHeight/3*2)
 
 
-    --難易度ブロック全体背景描画
+    --髮｣譏灘ｺｦ繝悶Ο繝・け蜈ｨ菴楢レ譎ｯ謠冗判
     local difficultyZones = getDifficultyZonePolygons()
 
     for _, diff in ipairs(difficultyOrder) do
@@ -2128,7 +2173,7 @@ function musiccard()
         )
     end
 
-    -- 難易度テキスト
+    -- 髮｣譏灘ｺｦ繝・く繧ｹ繝・
     love.graphics.setFont(titlefont)
     for _, diff in ipairs(difficultyOrder) do
         local x = displayWidth * difficultyLabelRatio[diff]
@@ -2142,7 +2187,7 @@ function musiccard()
         love.graphics.print(text, x, displayHeight/3*2)
     end
 
-    -- レベル値表示
+    -- 繝ｬ繝吶Ν蛟､陦ｨ遉ｺ
     love.graphics.setFont(levelfont)
     for _, diff in ipairs(difficultyOrder) do
         local x = displayWidth * difficultyLabelRatio[diff]
@@ -2171,7 +2216,7 @@ function musiccard()
         jacketimg = selectedJacket
     else
         jacketimg = nil
-        -- プレースホルダー
+        -- 繝励Ξ繝ｼ繧ｹ繝帙Ν繝繝ｼ
         love.graphics.setColor(0.25, 0.25, 0.25)
         love.graphics.rectangle("fill", displayWidth/2+1, displayHeight/20, displayWidth/2, displayHeight/2)
         love.graphics.setColor(1, 1, 1)
@@ -2231,7 +2276,7 @@ function musiccard()
         love.graphics.setColor(1, 1, 1)
     end
 
-    -- 楽曲動画視聴ボタン（URL存在時のみ表示）
+    -- 讌ｽ譖ｲ蜍慕判隕冶・繝懊ち繝ｳ・・RL蟄伜惠譎ゅ・縺ｿ陦ｨ遉ｺ・・
     local url = (chartdata.url and chartdata.url[selectedIndex]) or ""
     if url and url ~= "" and urlimg then
         local iconScale = 0.1
@@ -2243,7 +2288,7 @@ function musiccard()
         love.graphics.draw(urlimg, btnX, btnY, 0, iconScale, iconScale)
     end
 
-    --背景透過防止
+    --閭梧勹騾城℃髦ｲ豁｢
     love.graphics.setColor(0,0,0,0.3)
     love.graphics.rectangle("fill",displayWidth/2,0,displayWidth/2,displayHeight/3*2)
 
@@ -2433,10 +2478,10 @@ local function parseMetaOnly(chartText, chunkName)
                     if not x:match('^["\']') then x = '"'..x..'"' end
                     wparts[#wparts+1] = x
                 end
-                parts[#parts+1] = "watchuser={" .. table.concat(wparts, ",") .. "}"
+                parts[#parts+1] = "watchuser={" .. table_concat(wparts, ",") .. "}"
             end
 
-            metaBlock = "{" .. table.concat(parts, ",") .. "}"
+            metaBlock = "{" .. table_concat(parts, ",") .. "}"
         end
     end
     if not metaBlock then
@@ -2466,7 +2511,7 @@ local function applyMetaToParsed(parsed, meta)
 
     local rawVolume = tonumber(meta.volume) or 1.0
     if rawVolume <= 1.0 then
-        parsed.volume = math.max(rawVolume, 0.0)
+        parsed.volume = math_max(rawVolume, 0.0)
     else
         parsed.volume = 1.0 + (rawVolume - 1.0) / 9.0
     end
@@ -2647,12 +2692,13 @@ function musicselect.draw()
     love.graphics.setColor(1, 1, 1, 1)
     musiccard()
 
-    -- ジャンルバーおよび戻るボタン
+    -- 繧ｸ繝｣繝ｳ繝ｫ繝舌・縺翫ｈ縺ｳ謌ｻ繧九・繧ｿ繝ｳ
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(backbutton)
     love.graphics.line(displayWidth/10,0,displayWidth/10,displayHeight)
     love.graphics.line(0,displayHeight/10*9,displayWidth/10,displayHeight/10*9)
-    love.graphics.print("⇐",0, displayHeight/10*9)
+    local backLabel = "←"
+    love.graphics.print(backLabel, 10, displayHeight/10*9 + 5)
     love.graphics.setFont(titlefont)
     love.graphics.rectangle("line",displayWidth/3*1.75,displayHeight/8*7,displayWidth/5*1.5,displayHeight/10)
     love.graphics.setColor(0, 0, 0, 0.5)
@@ -2696,8 +2742,12 @@ end
 
 
 function musicselect.keypressed(key)
+    if fading then
+        return
+    end
+
     if key == "q" then
-        -- 全楽曲ソースファイルを再走査し再読み込み
+        -- 蜈ｨ讌ｽ譖ｲ繧ｽ繝ｼ繧ｹ繝輔ぃ繧､繝ｫ繧貞・襍ｰ譟ｻ縺怜・隱ｭ縺ｿ霎ｼ縺ｿ
         local selectionState = captureSelectionState()
         log.info("[Direct Reload] Re-scanning all songs...")
         
@@ -2717,7 +2767,7 @@ function musicselect.keypressed(key)
     end
 
     if key == "a" then
-        -- 互換キー: 直接読み込み方式では単一再生成は不要なため全体再読込で同期
+        -- 莠呈鋤繧ｭ繝ｼ: 逶ｴ謗･隱ｭ縺ｿ霎ｼ縺ｿ譁ｹ蠑上〒縺ｯ蜊倅ｸ蜀咲函謌舌・荳崎ｦ√↑縺溘ａ蜈ｨ菴灘・隱ｭ霎ｼ縺ｧ蜷梧悄
         local selectionState = captureSelectionState()
         local selectedIndex = musicselect.selectedIndex or 1
         log.info("[Direct Reload] Performing a full reload including song selection" .. selectedIndex)
@@ -2780,7 +2830,7 @@ function musicselect.keypressed(key)
             local value = (levelInfo and levelInfo[foundDiff]) or "--"
             musicselect.selectedLevelValue = (value ~= "" and value) or "--"
         else
-            -- どの難易度も譜面なしなら現在のままを維持（とりあえず fallback）
+            -- 縺ｩ縺ｮ髮｣譏灘ｺｦ繧りｭ憺擇縺ｪ縺励↑繧臥樟蝨ｨ縺ｮ縺ｾ縺ｾ繧堤ｶｭ謖・ｼ医→繧翫≠縺医★ fallback・・
             local curVal = (levelInfo and levelInfo[musicselect.selectedDifficulty]) or "--"
             musicselect.selectedLevelValue = (curVal ~= "" and curVal) or "--"
         end
@@ -2796,7 +2846,7 @@ function musicselect.keypressed(key)
         musicselect.musicartist = cleanUTF8(chartData.artist[musicselect.selectedIndex] or "")
         musicselect.level = chartData.level and chartData.level[musicselect.selectedIndex] or {}
 
-        -- E キーが押されていたら editor に遷移
+        -- E 繧ｭ繝ｼ縺梧款縺輔ｌ縺ｦ縺・◆繧・editor 縺ｫ驕ｷ遘ｻ
         if love.keyboard.isDown("e") then
             musicselect.selectmode = 8
         end
@@ -2837,15 +2887,15 @@ function musicselect.getWatchuserSongs(searchName)
     
     searchName = searchName:lower()
     
-    -- getAllWatchusers() ですべての watchuser 制限楽曲を取得
+    -- getAllWatchusers() 縺ｧ縺吶∋縺ｦ縺ｮ watchuser 蛻ｶ髯先･ｽ譖ｲ繧貞叙蠕・
     local allWatched = musicselect.getAllWatchusers()
     
     if searchName == "" then
-        -- 引数なし：すべての watchuser 楽曲を返す
+        -- 蠑墓焚縺ｪ縺暦ｼ壹☆縺ｹ縺ｦ縺ｮ watchuser 讌ｽ譖ｲ繧定ｿ斐☆
         return allWatched
     end
     
-    -- 特定ユーザーで検索
+    -- 迚ｹ螳壹Θ繝ｼ繧ｶ繝ｼ縺ｧ讀懃ｴ｢
     local results = {}
     for _, song in ipairs(allWatched) do
         local hasMatch = false
@@ -2857,7 +2907,7 @@ function musicselect.getWatchuserSongs(searchName)
         end
         
         if hasMatch then
-            table.insert(results, song)
+            table_insert(results, song)
         end
     end
     
@@ -2865,3 +2915,5 @@ function musicselect.getWatchuserSongs(searchName)
 end
 
 return musicselect
+
+

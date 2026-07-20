@@ -1,4 +1,23 @@
-﻿local bluescreen = {}
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
+local bluescreen = {}
 
 local displayWidth, displayHeight = love.graphics.getDimensions()
 local state = "idle"
@@ -78,7 +97,7 @@ local function drawBSODScreen()
         "",
         "Beginning dump of physical memory...",
         "Physical memory dump complete.",
-        string.format("System reboot in %d seconds...", countdown)
+        string_format("System reboot in %d seconds...", countdown)
     }
 
     for _, line in ipairs(lines) do
@@ -96,9 +115,10 @@ function bluescreen.draw()
 
     drawBSODScreen()
     if state == "flash" then
-        love.graphics.setColor(1, 1, 1, math.min(flashTimer / 2.5, 1))
+        love.graphics.setColor(1, 1, 1, math_min(flashTimer / 2.5, 1))
         love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
     end
 end
 
 return bluescreen
+

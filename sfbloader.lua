@@ -1,20 +1,39 @@
-﻿--[[
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
 
-sfb形式　中身
+--[[
+
+sfb蠖｢蠑上荳ｭ霄ｫ
 SFB1
-ファイル数
-ファイル名,オフセット,サイズ
-ファイル名,オフセット,サイズ
-ファイル名,オフセット,サイズ
-ファイルデータ
+繝輔ぃ繧､繝ｫ謨ｰ
+繝輔ぃ繧､繝ｫ蜷・繧ｪ繝輔そ繝・ヨ,繧ｵ繧､繧ｺ
+繝輔ぃ繧､繝ｫ蜷・繧ｪ繝輔そ繝・ヨ,繧ｵ繧､繧ｺ
+繝輔ぃ繧､繝ｫ蜷・繧ｪ繝輔そ繝・ヨ,繧ｵ繧､繧ｺ
+繝輔ぃ繧､繝ｫ繝・・繧ｿ
 
-データの渡し方
-sfbloader.load()でsfbファイルを読み込む
-sfbloader.load()はテーブルを返す
+繝・・繧ｿ縺ｮ貂｡縺玲婿
+sfbloader.load()縺ｧsfb繝輔ぃ繧､繝ｫ繧定ｪｭ縺ｿ霎ｼ繧
+sfbloader.load()縺ｯ繝・・繝悶Ν繧定ｿ斐☆
 
 
 
-metaデータ変数名
+meta繝・・繧ｿ螟画焚蜷・
 musicName
 musicartist
 musicbpm
@@ -171,3 +190,5 @@ function sfbloader.load()
 end
 
 return sfbloader
+
+

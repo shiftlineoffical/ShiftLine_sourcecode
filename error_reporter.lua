@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local socket_ok, socket = pcall(require, "socket")
 local http_ok, http = pcall(require, "socket.http")
 local https_ok, https = pcall(require, "ssl.https")
@@ -5,7 +24,7 @@ local ltn12_ok, ltn12 = pcall(require, "ltn12")
 
 local M = {}
 
--- ===== 設定 =====
+-- ===== 險ｭ螳・=====
 local WEBHOOK_URL = "https://example.com/webhook"
 local UDP_HOST = "127.0.0.1"
 local UDP_PORT = 5001
@@ -50,9 +69,9 @@ local function encodeJSON(tbl)
         else
             value = '"' .. escapeString(tostring(v or "")) .. '"'
         end
-        parts[#parts + 1] = string.format('"%s":%s', escapeString(key), value)
+        parts[#parts + 1] = string_format('"%s":%s', escapeString(key), value)
     end
-    return '{' .. table.concat(parts, ",") .. '}'
+    return '{' .. table_concat(parts, ",") .. '}'
 end
 
 local function saveLocal(data)
@@ -141,7 +160,7 @@ end
 local function generateCrashID()
     local base = os.time()
     local randomPart = math.random(100000, 999999)
-    return string.format("CRASH-%d-%06d", base, randomPart)
+    return string_format("CRASH-%d-%06d", base, randomPart)
 end
 
 function M.report(msg, trace)
@@ -180,3 +199,5 @@ function M.resendIfExists()
 end
 
 return M
+
+

@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local audiocache = {}
 
 local function ensureAudioCache(collections)
@@ -41,7 +60,7 @@ function audiocache.getEntryKey(entry)
         local key = nil
         local archive = tostring(entry.archive or "")
         if type(entry.data) == "string" then
-            key = table.concat({
+            key = table_concat({
                 "blob",
                 archive,
                 tostring(entry.name or "audio"),
@@ -89,7 +108,7 @@ local function decodeEntryToSoundData(entry)
 
     local path = getEntryPath(entry)
     if path then
-        -- 絶対パス（AppData など）の場合、まず LÖVE のファイルシステム経由で読めないか試みる
+        -- 邨ｶ蟇ｾ繝代せ・・ppData 縺ｪ縺ｩ・峨・蝣ｴ蜷医√∪縺・Lﾃ坊E 縺ｮ繝輔ぃ繧､繝ｫ繧ｷ繧ｹ繝・Β邨檎罰縺ｧ隱ｭ繧√↑縺・°隧ｦ縺ｿ繧・
         local fileName = path:match("([^/\\]+)$") or "audio"
 
         local function path_to_save_relative(p)
@@ -98,7 +117,7 @@ local function decodeEntryToSoundData(entry)
             end
             local ok, saveDir = pcall(love.filesystem.getSaveDirectory)
             if not ok or type(saveDir) ~= "string" then return nil end
-            -- 正規化
+            -- 豁｣隕丞喧
             local normSave = saveDir:gsub("\\","/")
             local normPath = p:gsub("\\","/")
             if normPath:sub(1, #normSave) == normSave then
@@ -109,7 +128,7 @@ local function decodeEntryToSoundData(entry)
             return nil
         end
 
-        -- LÖVE の save ディレクトリ内にあるか試す
+        -- Lﾃ坊E 縺ｮ save 繝・ぅ繝ｬ繧ｯ繝医Μ蜀・↓縺ゅｋ縺玖ｩｦ縺・
         local rel = path_to_save_relative(path)
         if rel and love and love.filesystem and love.filesystem.getInfo then
             local okRead, contents = pcall(love.filesystem.read, rel)
@@ -121,7 +140,7 @@ local function decodeEntryToSoundData(entry)
                         return soundData
                     end
                 end
-                -- 直接パス文字列で newSoundData を試す（LÖVE ファイルシステム内パスとして）
+                -- 逶ｴ謗･繝代せ譁・ｭ怜・縺ｧ newSoundData 繧定ｩｦ縺呻ｼ・ﾃ坊E 繝輔ぃ繧､繝ｫ繧ｷ繧ｹ繝・Β蜀・ヱ繧ｹ縺ｨ縺励※・・
                 local okSoundData2, soundData2 = pcall(love.sound.newSoundData, rel)
                 if okSoundData2 and soundData2 then
                     return soundData2
@@ -129,19 +148,34 @@ local function decodeEntryToSoundData(entry)
             end
         end
 
-        -- 上記で読めない場合は既存のフォールバック（絶対パス: io.open / 相対: love.filesystem による読み込み）
+        -- 荳願ｨ倥〒隱ｭ繧√↑縺・ｴ蜷医・譌｢蟄倥・繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ・育ｵｶ蟇ｾ繝代せ: io.open / 逶ｸ蟇ｾ: love.filesystem 縺ｫ繧医ｋ隱ｭ縺ｿ霎ｼ縺ｿ・・
         local fileContent = nil
-        if path:match("^[A-Za-z]:") or path:match("^/") then
-            -- 絶対パスの場合（ファイルシステム外）
-            local f = io.open(path, "rb")
+        local filePath = path
+
+        if filePath:match("^[A-Za-z]:") or filePath:match("^/") then
+            local f = io.open(filePath, "rb")
             if f then
                 fileContent = f:read("*a")
                 f:close()
             end
+        else
+            -- Try relative filesystem path first.
+            if love.filesystem and love.filesystem.getInfo and love.filesystem.getInfo(filePath, "file") then
+                local okRead, contents = pcall(love.filesystem.read, filePath)
+                if okRead and type(contents) == "string" and contents ~= "" then
+                    fileContent = contents
+                end
+            end
+            if not fileContent then
+                local f = io.open(filePath, "rb")
+                if f then
+                    fileContent = f:read("*a")
+                    f:close()
+                end
+            end
         end
 
         if fileContent then
-            -- ファイルコンテンツから FileData を作成
             local okFileData, fileData = pcall(love.filesystem.newFileData, fileContent, fileName)
             if okFileData and fileData then
                 local okSoundData, soundData = pcall(love.sound.newSoundData, fileData)
@@ -149,9 +183,16 @@ local function decodeEntryToSoundData(entry)
                     return soundData
                 end
             end
+        elseif love.filesystem and love.filesystem.getInfo and love.filesystem.getInfo(filePath, "file") then
+            local okFileData, fileData = pcall(love.filesystem.newFileData, filePath)
+            if okFileData and fileData then
+                local okSoundData, soundData = pcall(love.sound.newSoundData, fileData)
+                if okSoundData and soundData then
+                    return soundData
+                end
+            end
         else
-            -- 相対パスまたは LÖVE ファイルシステム内のパスの場合
-            local okSoundData, soundData = pcall(love.sound.newSoundData, path)
+            local okSoundData, soundData = pcall(love.sound.newSoundData, filePath)
             if okSoundData and soundData then
                 return soundData
             end
@@ -218,3 +259,5 @@ function audiocache.preloadCollectionAudio(collections)
 end
 
 return audiocache
+
+

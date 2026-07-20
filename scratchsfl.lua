@@ -1,35 +1,54 @@
-﻿--[[
-変数表
-sflfoldname: 曲のフォルダ名を格納するテーブル
-filelist: 曲のフォルダ内のファイル名を格納するテーブル
-関数表
-notesetting.load(): 曲のフォルダ名を取得してテーブルに格納する
-foldName: 曲のフォルダ名
-songPath: 曲のフォルダのパス
-sflpath: sflファイルのパス
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
+--[[
+螟画焚陦ｨ
+sflfoldname: 譖ｲ縺ｮ繝輔か繝ｫ繝蜷阪ｒ譬ｼ邏阪☆繧九ユ繝ｼ繝悶Ν
+filelist: 譖ｲ縺ｮ繝輔か繝ｫ繝蜀・・繝輔ぃ繧､繝ｫ蜷阪ｒ譬ｼ邏阪☆繧九ユ繝ｼ繝悶Ν
+髢｢謨ｰ陦ｨ
+notesetting.load(): 譖ｲ縺ｮ繝輔か繝ｫ繝蜷阪ｒ蜿門ｾ励＠縺ｦ繝・・繝悶Ν縺ｫ譬ｼ邏阪☆繧・
+foldName: 譖ｲ縺ｮ繝輔か繝ｫ繝蜷・
+songPath: 譖ｲ縺ｮ繝輔か繝ｫ繝縺ｮ繝代せ
+sflpath: sfl繝輔ぃ繧､繝ｫ縺ｮ繝代せ
 
 
 
-notesetting.load()の処理の流れ
-1. "lib/data/Songs"ディレクトリ内のアイテムを取得し、テーブルsongsfoldに格納する
-2. songsfoldをアルファベット順にソートする
-3. sflfoldnameとsflpathという空のテーブルを作成する
-4. songsfoldの各アイテムについて以下の処理を行う
-    a. アイテムがディレクトリであるか確認する
-    b. ディレクトリ内のアイテムを取得し、テーブルsongsfoldに格納する
-    c. songsfoldをアルファベット順にソートする
-    d. ディレクトリ内のアイテムを順番に確認し、拡張子が.sflのファイルがあればそのパスをchartPathに格納し、ループを抜ける
-    f. chartPathが見つかった場合、sflfoldnameにフォルダ名を、sflpathにchartPathを格納する
-5. sflfoldnameとsflpathという空のテーブルを作成する
-6. sflfoldnameの最初の要素が存在する場合、そのフォルダ内のアイテムを取得し、テーブルfilelistに格納する
-7. filelistをアルファベット順にソートする
-8. sflfoldnameとfilelist、sflpathを返す
+notesetting.load()縺ｮ蜃ｦ逅・・豬√ｌ
+1. "lib/data/Songs"繝・ぅ繝ｬ繧ｯ繝医Μ蜀・・繧｢繧､繝・Β繧貞叙蠕励＠縲√ユ繝ｼ繝悶Νsongsfold縺ｫ譬ｼ邏阪☆繧・
+2. songsfold繧偵い繝ｫ繝輔ぃ繝吶ャ繝磯・↓繧ｽ繝ｼ繝医☆繧・
+3. sflfoldname縺ｨsflpath縺ｨ縺・≧遨ｺ縺ｮ繝・・繝悶Ν繧剃ｽ懈・縺吶ｋ
+4. songsfold縺ｮ蜷・い繧､繝・Β縺ｫ縺､縺・※莉･荳九・蜃ｦ逅・ｒ陦後≧
+    a. 繧｢繧､繝・Β縺後ョ繧｣繝ｬ繧ｯ繝医Μ縺ｧ縺ゅｋ縺狗｢ｺ隱阪☆繧・
+    b. 繝・ぅ繝ｬ繧ｯ繝医Μ蜀・・繧｢繧､繝・Β繧貞叙蠕励＠縲√ユ繝ｼ繝悶Νsongsfold縺ｫ譬ｼ邏阪☆繧・
+    c. songsfold繧偵い繝ｫ繝輔ぃ繝吶ャ繝磯・↓繧ｽ繝ｼ繝医☆繧・
+    d. 繝・ぅ繝ｬ繧ｯ繝医Μ蜀・・繧｢繧､繝・Β繧帝・分縺ｫ遒ｺ隱阪＠縲∵僑蠑ｵ蟄舌′.sfl縺ｮ繝輔ぃ繧､繝ｫ縺後≠繧後・縺昴・繝代せ繧団hartPath縺ｫ譬ｼ邏阪＠縲√Ν繝ｼ繝励ｒ謚懊￠繧・
+    f. chartPath縺瑚ｦ九▽縺九▲縺溷ｴ蜷医《flfoldname縺ｫ繝輔か繝ｫ繝蜷阪ｒ縲《flpath縺ｫchartPath繧呈ｼ邏阪☆繧・
+5. sflfoldname縺ｨsflpath縺ｨ縺・≧遨ｺ縺ｮ繝・・繝悶Ν繧剃ｽ懈・縺吶ｋ
+6. sflfoldname縺ｮ譛蛻昴・隕∫ｴ縺悟ｭ伜惠縺吶ｋ蝣ｴ蜷医√◎縺ｮ繝輔か繝ｫ繝蜀・・繧｢繧､繝・Β繧貞叙蠕励＠縲√ユ繝ｼ繝悶Νfilelist縺ｫ譬ｼ邏阪☆繧・
+7. filelist繧偵い繝ｫ繝輔ぃ繝吶ャ繝磯・↓繧ｽ繝ｼ繝医☆繧・
+8. sflfoldname縺ｨfilelist縲《flpath繧定ｿ斐☆
 
 
 
-sflpathの内容
-sflpathは、"lib/data/Songs"ディレクトリ内の各曲のフォルダに存在する.sflファイルのパスを格納するテーブル
-例えば、"lib/data/Songs/ExampleSong/ExampleSong.sfl"のようなパスが格納される
+sflpath縺ｮ蜀・ｮｹ
+sflpath縺ｯ縲・lib/data/Songs"繝・ぅ繝ｬ繧ｯ繝医Μ蜀・・蜷・峇縺ｮ繝輔か繝ｫ繝縺ｫ蟄伜惠縺吶ｋ.sfl繝輔ぃ繧､繝ｫ縺ｮ繝代せ繧呈ｼ邏阪☆繧九ユ繝ｼ繝悶Ν
+萓九∴縺ｰ縲・lib/data/Songs/ExampleSong/ExampleSong.sfl"縺ｮ繧医≧縺ｪ繝代せ縺梧ｼ邏阪＆繧後ｋ
 
 
 
@@ -41,7 +60,7 @@ local scratchsfl = {}
 scratchsfl.foldname={}
 scratchsfl.list={}
 scratchsfl.path={}
-scratchsfl.basePath={}  -- 各楽曲のベースパス（lib/data/SongsまたはAPPDATA/ShiftLine/Songs）
+scratchsfl.basePath={}  -- 蜷・･ｽ譖ｲ縺ｮ繝吶・繧ｹ繝代せ・・ib/data/Songs縺ｾ縺溘・APPDATA/ShiftLine/Songs・・
 
 local log = require("log")
 
@@ -88,7 +107,7 @@ function scratchsfl.load()
     end
 
     local basePaths = {"lib/data/Songs"}
-    -- AppData（保存領域）はまず LÖVE のファイルシステム内の相対パスを優先して参照する
+    -- AppData・井ｿ晏ｭ倬伜沺・峨・縺ｾ縺・Lﾃ坊E 縺ｮ繝輔ぃ繧､繝ｫ繧ｷ繧ｹ繝・Β蜀・・逶ｸ蟇ｾ繝代せ繧貞━蜈医＠縺ｦ蜿ら・縺吶ｋ
     if love and love.filesystem and love.filesystem.getSaveDirectory then
         basePaths[#basePaths+1] = "ShiftLine/Songs"
     else
@@ -159,7 +178,9 @@ function scratchsfl.load()
     scratchsfl.foldname, scratchsfl.list, scratchsfl.path, scratchsfl.basePath = sflfoldname, filelist, sflpath, basePath
 end
 
--- モジュールとしてテーブルを返す
+-- 繝｢繧ｸ繝･繝ｼ繝ｫ縺ｨ縺励※繝・・繝悶Ν繧定ｿ斐☆
 return scratchsfl, scratchsfl.foldname, scratchsfl.list, scratchsfl.path
+
+
 
 

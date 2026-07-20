@@ -1,3 +1,22 @@
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
 local userbadge = {}
 
 local gamejolt = require "gamejolt"
@@ -56,7 +75,7 @@ function userbadge.update(dt)
             avatarUrlAttempted = url
             avatarImg = fetchAvatarImage(url)
             if avatarImg then
-                avatarScale = 40 / math.max(1, math.max(avatarImg:getWidth(), avatarImg:getHeight()))
+                avatarScale = 40 / math_max(1, math_max(avatarImg:getWidth(), avatarImg:getHeight()))
                 avatarUrlLoaded = url
             end
         end
@@ -83,7 +102,7 @@ function userbadge.draw()
         if type(stats) == "table" then
             local rating = tonumber(stats.ratingAverage) or tonumber(stats.lastRating)
             if type(rating) == "number" and rating > 0 then
-                ratingText = "  " .. string.format("%.2f", rating)
+                ratingText = "  " .. string_format("%.2f", rating)
             end
         end
     end
@@ -119,10 +138,12 @@ function userbadge.draw()
     end
 
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print(displayName, x + iconSize + pad, y + math.floor((iconSize - textH) / 2 + 0.5))
+    love.graphics.print(displayName, x + iconSize + pad, y + math_floor((iconSize - textH) / 2 + 0.5))
 
     love.graphics.setFont(prevFont)
     love.graphics.setColor(r, g, b, a)
 end
 
 return userbadge
+
+

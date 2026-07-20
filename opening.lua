@@ -1,4 +1,23 @@
-﻿local opening = {}
+﻿local _G = _G
+local love = love
+local string = string
+local table = table
+local math = math
+local ipairs = ipairs
+local pairs = pairs
+local pcall = pcall
+local tostring = tostring
+local tonumber = tonumber
+local type = type
+local string_format = string.format
+local table_insert = table.insert
+local table_remove = table.remove
+local table_concat = table.concat
+local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
+
+local opening = {}
 
 local displayWidth, displayHeight = love.graphics.getDimensions()
 local gamejolt = require "gamejolt"
@@ -71,16 +90,20 @@ end
 
 
 local function updateOpeningLayout()
-    local baseFontSize = math.max(18, math.floor(displayHeight * 0.035))
-    local exitFontSize = math.max(18, math.floor(displayHeight * 0.04))
-    local clickFontSize = math.max(16, math.floor(displayHeight * 0.025))
+    local baseFontSize = math_max(18, math_floor(displayHeight * 0.035))
+    local exitFontSize = math_max(18, math_floor(displayHeight * 0.04))
+    local clickFontSize = math_max(16, math_floor(displayHeight * 0.025))
 
-    loginfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", baseFontSize)
-    exitfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", exitFontSize)
-    clickfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", clickFontSize)
+    -- Safe font creation: fall back to current default font on failure
+    local ok1, f1 = pcall(function() return love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", baseFontSize) end)
+    if ok1 and f1 then loginfont = f1 else loginfont = love.graphics.getFont() end
+    local ok2, f2 = pcall(function() return love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", exitFontSize) end)
+    if ok2 and f2 then exitfont = f2 else exitfont = love.graphics.getFont() end
+    local ok3, f3 = pcall(function() return love.graphics.newFont("lib/data/fonts/NotoSansJP-ExtraLight.ttf", clickFontSize) end)
+    if ok3 and f3 then clickfont = f3 else clickfont = love.graphics.getFont() end
 
-    exitButtonPaddingX = math.max(10, math.floor(exitFontSize * 0.45))
-    exitButtonPaddingY = math.max(6, math.floor(exitFontSize * 0.35))
+    exitButtonPaddingX = math_max(10, math_floor(exitFontSize * 0.45))
+    exitButtonPaddingY = math_max(6, math_floor(exitFontSize * 0.35))
 
     if logoimg then
         local mainLogoMaxW = displayWidth * 0.45
@@ -143,8 +166,8 @@ local function getLoginUiRects()
     local userBox = { x = inputX, y = displayHeight / 10 * 2, w = inputW, h = inputH }
     local tokenBox = { x = inputX, y = displayHeight / 10 * 3, w = inputW, h = inputH }
 
-    local checkboxSize = math.floor(inputH * 0.7 + 0.5)
-    local checkboxY = displayHeight / 10 * 4 + math.floor((inputH - checkboxSize) / 2 + 0.5)
+    local checkboxSize = math_floor(inputH * 0.7 + 0.5)
+    local checkboxY = displayHeight / 10 * 4 + math_floor((inputH - checkboxSize) / 2 + 0.5)
     local checkbox = { x = inputX, y = checkboxY, size = checkboxSize }
 
     local loginBtn = { x = inputX, y = displayHeight / 10 * 5, w = inputW, h = inputH }
@@ -281,7 +304,7 @@ local function fitTextEnd(text, maxWidth, font)
     local lo, hi = 1, len
     local best = ""
     while lo <= hi do
-        local mid = math.floor((lo + hi) / 2)
+        local mid = math_floor((lo + hi) / 2)
         local byteIndex = utf8.offset(text, mid)
         if not byteIndex then break end
 
@@ -420,7 +443,7 @@ local function attemptLogin()
     statusIsError = false
 
     if usernametext == "" or tokentext == "" then
-        statusText = "UserID と Token を入力してください"
+        statusText = "UserID 縺ｨ Token 繧貞・蜉帙＠縺ｦ縺上□縺輔＞"
         statusIsError = true
         return
     end
@@ -430,13 +453,13 @@ local function attemptLogin()
     end)
 
     if not ok then
-        statusText = "ログインに失敗しました: " .. tostring(authenticatedOrErr)
+        statusText = "繝ｭ繧ｰ繧､繝ｳ縺ｫ螟ｱ謨励＠縺ｾ縺励◆: " .. tostring(authenticatedOrErr)
         statusIsError = true
         return
     end
 
     if authenticatedOrErr then
-        statusText = "ログイン成功"
+        statusText = "繝ｭ繧ｰ繧､繝ｳ謌仙粥"
         statusIsError = false
 
         if autologinChecked then
@@ -449,7 +472,7 @@ local function attemptLogin()
         setTextInputRectForFocus()
         pushLoginToMain(true)
     else
-        statusText = "ログイン失敗 (UserID/Token を確認してください)"
+        statusText = "繝ｭ繧ｰ繧､繝ｳ螟ｱ謨・(UserID/Token 繧堤｢ｺ隱阪＠縺ｦ縺上□縺輔＞)"
         statusIsError = true
         pushLoginToMain(false)
     end
@@ -474,19 +497,44 @@ function opening.load()
 
 
     logoimg = love.graphics.newImage("img/logo.png")
-    gamejoltlogoimg = love.graphics.newImage("img/gamejoltlogo.png")
+    -- Safe image loading
+    local okLogo, logoImgOrErr = pcall(function()
+        if love.filesystem and love.filesystem.getInfo and not love.filesystem.getInfo("img/logo.png") then return nil end
+        return love.graphics.newImage("img/logo.png")
+    end)
+    if okLogo and logoImgOrErr then logoimg = logoImgOrErr end
+
+    local okGJ, gjImgOrErr = pcall(function()
+        if love.filesystem and love.filesystem.getInfo and not love.filesystem.getInfo("img/gamejoltlogo.png") then return nil end
+        return love.graphics.newImage("img/gamejoltlogo.png")
+    end)
+    if okGJ and gjImgOrErr then gamejoltlogoimg = gjImgOrErr end
 
     updateOpeningLayout()
 
-    if love.graphics.newVideoStream then
-        videostream = love.graphics.newVideoStream("img/OP.ogv")
-        Video = love.graphics.newVideo(videostream)
-    elseif love.graphics.newVideo then
-        Video = love.graphics.newVideo("img/OP.ogv")
+    ---@diagnostic disable: undefined-field
+    ---@diagnostic disable-next-line: undefined-field
+    ---@diagnostic disable: undefined-field
+    ---@diagnostic disable: undefined-field
+    -- Safe video creation: check file and available API
+    if love.filesystem and love.filesystem.getInfo and love.filesystem.getInfo("img/OP.ogv") then
+        if type(love.graphics.newVideoStream) == "function" then
+            local okv, vs = pcall(function() return love.graphics.newVideoStream("img/OP.ogv") end)
+            if okv and vs then
+                local okv2, vobj = pcall(function() return love.graphics.newVideo(vs) end)
+                if okv2 and vobj then Video = vobj end
+            end
+        elseif type(love.graphics.newVideo) == "function" then
+            local okv, vobj = pcall(function() return love.graphics.newVideo("img/OP.ogv") end)
+            if okv and vobj then Video = vobj end
+        end
     end
+    ---@diagnostic enable: undefined-field
+    ---@diagnostic enable: undefined-field
+    ---@diagnostic enable: undefined-field
 
-    if Video then
-        Video:play()
+    if Video and type(Video.play) == "function" then
+        pcall(function() Video:play() end)
     end
 
     usernametext = gamejoltuser.userid or ""
@@ -562,7 +610,7 @@ function opening.update(dt)
     end
 
     if fadeOut then
-        fadeAlpha = math.min(fadeAlpha + dt / fadeDuration, 1)
+        fadeAlpha = math_min(fadeAlpha + dt / fadeDuration, 1)
         if fadeAlpha >= 1 then
             opening.endprocess = true
         end
@@ -571,9 +619,14 @@ function opening.update(dt)
     button.x = displayWidth - button.w - displayWidth * 0.02
     button.y = displayHeight * 0.02
 
-    if not Video:isPlaying() then
-        Video:rewind()
-        Video:play()
+    if Video and type(Video.isPlaying) == "function" then
+        local ok, playing = pcall(function() return Video:isPlaying() end)
+        if not ok or not playing then
+            pcall(function()
+                if type(Video.rewind) == "function" then Video:rewind() end
+                if type(Video.play) == "function" then Video:play() end
+            end)
+        end
     end
 end
 
@@ -720,7 +773,7 @@ local function drawLoginUi()
     local panel, userBox, tokenBox, checkbox, loginBtn = getLoginUiRects()
 
     -- Fade in quickly when opened.
-    fead = math.min(fead + time * 6, 1)
+    fead = math_min(fead + time * 6, 1)
     local a = fead
 
     local font = love.graphics.getFont()
@@ -759,7 +812,7 @@ local function drawLoginUi()
 
     -- Placeholder / values.
     love.graphics.setColor(0.75, 0.75, 0.75, a)
-    local textYAdjust = math.floor((userBox.h - font:getHeight()) / 2 + 0.5)
+    local textYAdjust = math_floor((userBox.h - font:getHeight()) / 2 + 0.5)
     local maxTextWidth = userBox.w - padding * 2
     local useridDisplay
     if usernametext ~= "" then
@@ -829,7 +882,7 @@ local function drawLoginUi()
     love.graphics.rectangle("line", loginBtn.x, loginBtn.y, loginBtn.w, loginBtn.h)
     local loginLabel = i18n.t("login")
     local loginLabelX = loginBtn.x + (loginBtn.w - font:getWidth(loginLabel)) / 2
-    local loginLabelY = loginBtn.y + math.floor((loginBtn.h - font:getHeight()) / 2 + 0.5)
+    local loginLabelY = loginBtn.y + math_floor((loginBtn.h - font:getHeight()) / 2 + 0.5)
     love.graphics.print(loginLabel, loginLabelX, loginLabelY)
 
     -- Status text.
@@ -862,7 +915,9 @@ end
 
 function opening.draw()
     love.graphics.setColor(1, 1, 1, 0.5)
-    love.graphics.draw(Video, 0, 0, 0, displayWidth / Video:getWidth(), displayHeight / Video:getHeight())
+    if Video then
+        love.graphics.draw(Video, 0, 0, 0, displayWidth / Video:getWidth(), displayHeight / Video:getHeight())
+    end
     love.graphics.setColor(1, 1, 1)
 
     if logoimg then
@@ -875,10 +930,18 @@ function opening.draw()
 
     love.graphics.setColor(1, 1, 1)
 
-    love.graphics.setFont(clickfont)
-    local clickText = i18n.t("clickToStart")
-    local clickY = displayHeight - clickfont:getHeight() - math.max(20, math.floor(displayHeight * 0.025))
-    love.graphics.print(clickText, displayWidth / 2 - clickfont:getWidth(clickText) / 2, clickY)
+    if clickfont then
+        love.graphics.setFont(clickfont)
+        local clickText = i18n.t("clickToStart")
+        local clickY = displayHeight - clickfont:getHeight() - math_max(20, math_floor(displayHeight * 0.025))
+        love.graphics.print(clickText, displayWidth / 2 - clickfont:getWidth(clickText) / 2, clickY)
+    else
+        local defaultFont = love.graphics.getFont()
+        love.graphics.setFont(defaultFont)
+        local clickText = i18n.t("clickToStart")
+        local clickY = displayHeight - defaultFont:getHeight() - math_max(20, math_floor(displayHeight * 0.025))
+        love.graphics.print(clickText, displayWidth / 2 - defaultFont:getWidth(clickText) / 2, clickY)
+    end
 
     -- Exit button (larger, interactive)
     love.graphics.setFont(exitfont)
@@ -914,3 +977,5 @@ function opening.drawOverlay()
 end
 
 return opening
+
+
