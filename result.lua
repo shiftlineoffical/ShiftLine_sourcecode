@@ -409,32 +409,30 @@ local function sendResultToGameJolt()
     }
 
     if gamejolt.status and gamejolt.status.authenticated then
-        local okScore, responseScore = pcall(function()
+        local okScore, submitOk, responseScore = pcall(function()
             return gamejolt.submitScore(scoreData.score, scoreData.score, JSON:encode(payload), 1090059)
         end)
-        if okScore and type(responseScore) == "table" and responseScore.success == "true" then
+        if okScore and submitOk and type(responseScore) == "table" and responseScore.success == "true" then
             log.info("GameJolt result score synced")
         else
-            log.warn("GameJolt result score sync failed: " .. tostring((type(responseScore) == "table" and responseScore.message) or responseScore or "unknown"))
+            log.warn("GameJolt result score sync failed: " .. tostring((type(responseScore) == "table" and responseScore.message) or responseScore or (submitOk == false and "submit failed") or "unknown"))
         end
     end
 
     if type(gamejolt.savePlayerStats) == "function" then
-        local okStats, responseStats = pcall(function()
+        local okStats, saveOk, responseStats = pcall(function()
             return gamejolt.savePlayerStats(payload, "player_stats", "local_player_stats.json")
         end)
-        if okStats then
+        if okStats and saveOk then
             if type(responseStats) == "table" and responseStats.success == "true" then
                 log.info("GameJolt player stats synced")
             elseif type(responseStats) == "table" and responseStats.success == "local" then
                 log.info("Local player stats saved: " .. tostring(responseStats.message))
-            elseif type(responseStats) == "string" then
-                log.warn("Player stats save failed: " .. responseStats)
             else
                 log.warn("Player stats save failed: " .. tostring((type(responseStats) == "table" and responseStats.message) or responseStats or "unknown"))
             end
         else
-            log.warn("Player stats save failed: " .. tostring(responseStats or "unknown"))
+            log.warn("Player stats save failed: " .. tostring(responseStats or (saveOk == false and "save failed") or "unknown"))
         end
     end
 
