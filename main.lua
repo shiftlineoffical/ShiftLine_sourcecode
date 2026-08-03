@@ -357,6 +357,10 @@ function love.update(dt)
     elseif programnumber ==3 and musicselect.endprocess and musicselect.selectmode == 2 then
         local playCollections = nil
         musiclevel = musicselect.selectedLevelValue
+<<<<<<< Updated upstream
+=======
+        musicdifficulty = musicselect.selectedDifficulty
+>>>>>>> Stashed changes
         musicname = musicselect.musicname
         musicartist = musicselect.musicartist
         local diffName = musicselect.selectedDifficulty
@@ -371,6 +375,10 @@ function love.update(dt)
         -- エディタモードに遷移（Play + E キー）
         local playCollections = nil
         musiclevel = musicselect.selectedLevelValue
+<<<<<<< Updated upstream
+=======
+        musicdifficulty = musicselect.selectedDifficulty
+>>>>>>> Stashed changes
         musicname = musicselect.musicname
         musicartist = musicselect.musicartist
         local diffName = musicselect.selectedDifficulty

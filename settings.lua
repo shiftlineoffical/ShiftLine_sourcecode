@@ -16,11 +16,19 @@ local function isCloudoampUser()
 end
 
 local categoryColors = {
+<<<<<<< Updated upstream
     {0.5, 0.5, 0.5},
     {0.5, 0.5, 0.5},
     {0.5, 0.5, 0.5},
     {0.5, 0.5, 0.5},
     {0.5, 0.5, 0.5}
+=======
+    {0.75, 0.75, 0.75},
+    {0.75, 0.75, 0.75},
+    {0.75, 0.75, 0.75},
+    {0.75, 0.75, 0.75},
+    {0.75, 0.75, 0.75}
+>>>>>>> Stashed changes
 }
 
 local linkdata = {
@@ -38,21 +46,31 @@ local linkdata = {
 5:繝ｪ繝ｳ繧ｯ]]
 selectedIndex = 1
 selectedFieldIndex = 1
+keyConfigSelectedIndex = 1
+keyConfigWaitingForKey = false
+keyConfigTargetField = nil
+keyConfigReturnIndex = 4
 
+<<<<<<< Updated upstream
 local categories = {"display", "audio", "misc", "play", "links", "keys"}
+=======
+local categories = {"display", "audio", "misc", "play", "key"}
+>>>>>>> Stashed changes
 
 local settingFields = {
     {"displaySize", "displayMode", "vsync"},
     {"masterVolume", "musicVolume", "sfxVolume"},
     {"language", "timeout", "defaultLevel"},
     {"moveSpeed", "timing", "playLogSave", "showFPS"},
+<<<<<<< Updated upstream
     {"website", "gamepage", "twitter"},
     {"moveup", "movedown", "moveleft", "moveright", "leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree", "pause"}
+=======
+    {"leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree"}
+>>>>>>> Stashed changes
 }
 
 local displayResolutions = {
-    {800, 600},
-    {1024, 768},
     {1280, 720},
     {1600, 900},
     {1920, 1080}
@@ -61,9 +79,15 @@ local displayResolutions = {
 local localeTexts = {
     jp = {
         title = "設定",
+<<<<<<< Updated upstream
         categories = {"画面設定", "音声設定", "情報設定", "プレイ設定", "サイトリンク", "キーコンフィグ"},
         displaySize = "画面サイズ",
         displayMode = "画面モード",
+=======
+        categories = {"表示", "音声", "その他", "プレイ", "キー"},
+        displaySize = "解像度",
+        displayMode = "表示モード",
+>>>>>>> Stashed changes
         vsync = "垂直同期",
         fullscreen = "フルスクリーン",
         windowed = "ウィンドウ",
@@ -90,10 +114,20 @@ local localeTexts = {
         rightone = "右1",
         righttwo = "右2",
         righttree = "右3",
+<<<<<<< Updated upstream
         pause = "一時停止",
         helpText = "選択: Enter/上下/左右, 調整: ホイール, 保存: Enter/クリック",
         openLinkHelp = "リンクを開く",
         keyConfigHelp = "Enterを押してからキーを押す",
+=======
+        pause = "ポーズ",
+        helpText = "上下/左右で選択、ホイールで調整、Enterで保存",
+        openLinkHelp = "リンクを開くにはクリック",
+        keyConfigHelp = "Enterまたはクリックでキーを割り当て、Escでキャンセル",
+        keyConfigTitle = "キーバインド設定",
+        keyConfigPrompt = "レーンを選んでキーを押してください",
+        keyConfigWaiting = "入力待ち...",
+>>>>>>> Stashed changes
         booleanOn = "ON",
         booleanOff = "OFF",
         languageName = {jp = "日本語", en = "English"},
@@ -101,7 +135,11 @@ local localeTexts = {
     },
     en = {
         title = "Settings",
+<<<<<<< Updated upstream
         categories = {"Display", "Audio", "Misc", "Play", "Links", "Keys"},
+=======
+        categories = {"Display", "Audio", "Misc", "Play", "Key"},
+>>>>>>> Stashed changes
         displaySize = "Display Size",
         displayMode = "Display Mode",
         vsync = "VSync",
@@ -133,7 +171,14 @@ local localeTexts = {
         pause = "Pause",
         helpText = "Click/UpDown/LeftRight to select, wheel to adjust, Enter/click to save",
         openLinkHelp = "Click to open link",
+<<<<<<< Updated upstream
         keyConfigHelp = "Press Enter then press a key to assign",
+=======
+        keyConfigHelp = "Press Enter or click to assign a key, Esc cancels",
+        keyConfigTitle = "Key Bind Config",
+        keyConfigPrompt = "Select a lane and press a key",
+        keyConfigWaiting = "Waiting for input...",
+>>>>>>> Stashed changes
         booleanOn = "On",
         booleanOff = "Off",
         languageName = {jp = "日本語", en = "English"},
@@ -223,11 +268,6 @@ local function drawMenuItem(y, label, isSelected)
     love.graphics.print(label, 40, y)
 end
 
-local function drawSettingLine(y, label, value, isSelected)
-    love.graphics.setColor(isSelected and {1, 0.9, 0.4} or {1, 1, 1})
-    love.graphics.print(label .. ": " .. tostring(value), displayWidth/2, y)
-end
-
 local function getSettingValue(key)
     if key == "displaySize" then
         local size = settingsdata.displaysettings.displaysize
@@ -267,6 +307,104 @@ local function getSettingValue(key)
         return settingsdata.keysettings[key]
     end
     return ""
+end
+
+local keyConfigItemOrder = {"moveup", "movedown", "moveleft", "moveright", "leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree"}
+
+local function getKeyConfigFieldName(index)
+    return keyConfigItemOrder[index]
+end
+
+local function normalizeKeyBindingName(key, scancode)
+    if type(key) == "string" and key ~= "" then
+        local normalized = key:lower()
+        if normalized == " " then
+            return "space"
+        end
+        return normalized
+    end
+    if type(scancode) == "string" and scancode ~= "" then
+        return scancode:lower()
+    end
+    return nil
+end
+
+local function beginKeyBinding(itemIndex)
+    keyConfigSelectedIndex = itemIndex
+    keyConfigWaitingForKey = true
+    keyConfigTargetField = getKeyConfigFieldName(itemIndex)
+end
+
+local function getKeyConfigItemRect(index)
+    local laneGap = math_max(16, displayWidth * 0.018)
+    local isDirectionItem = index <= 4
+    local itemCount = isDirectionItem and 4 or 6
+    local itemWidth = (displayWidth - layout.padding * 2 - laneGap * (itemCount - 1)) / itemCount
+    local itemHeight = math_max(92, displayHeight * 0.16)
+    local rowY = displayHeight * 0.18
+    if not isDirectionItem then
+        rowY = displayHeight * 0.36
+    end
+    local x = layout.padding + (index - 1) * (itemWidth + laneGap)
+    if not isDirectionItem then
+        x = layout.padding + (index - 5) * (itemWidth + laneGap)
+    end
+    return x, rowY, itemWidth, itemHeight
+end
+
+local function drawKeyConfigScreen()
+    love.graphics.setFont(Subtitlefont)
+    love.graphics.setColor(1, 1, 1, 0.95)
+    local titleText = tostring(getLocaleText("keyConfigTitle"))
+    love.graphics.print(titleText, displayWidth / 2 - Subtitlefont:getWidth(titleText) / 2, layout.padding)
+
+    love.graphics.setFont(font)
+    love.graphics.setColor(1, 1, 1, 0.8)
+    local promptText = tostring(getLocaleText("keyConfigPrompt"))
+    love.graphics.printf(promptText, layout.padding, layout.padding + 46, displayWidth - layout.padding * 2, "center")
+
+    love.graphics.setColor(1, 1, 1, 0.65)
+    love.graphics.printf("Esc: back", layout.padding, layout.padding + 82, displayWidth - layout.padding * 2, "center")
+
+    for itemIndex = 1, #keyConfigItemOrder do
+        local x, y, w, h = getKeyConfigItemRect(itemIndex)
+        local fieldName = getKeyConfigFieldName(itemIndex)
+        local isSelected = keyConfigSelectedIndex == itemIndex
+        local isWaiting = keyConfigWaitingForKey and keyConfigTargetField == fieldName
+        local poly = ui.parallelogramPoly(x, x + w, y, y + h, slope)
+        local color = isSelected and {0.20, 0.20, 0.20, 0.96} or {0.10, 0.10, 0.10, 0.92}
+        local lineColor = isSelected and {1, 1, 1, 0.18} or {1, 1, 1, 0.08}
+        if isWaiting then
+            color = {0.18, 0.18, 0.18, 0.98}
+            lineColor = {1, 1, 1, 0.28}
+        end
+        ui.drawParallelogram(poly, "", font, {
+            color = color,
+            lineColor = lineColor,
+            textPadding = 12,
+            textColor = {1, 1, 1, 1}
+        })
+
+        love.graphics.setColor(1, 1, 1, 0.95)
+        love.graphics.print(getLocaleText(fieldName), x + 12, y + 12)
+
+        local keyValue = tostring(getSettingValue(fieldName))
+        love.graphics.setColor(1, 1, 1, 0.82)
+        love.graphics.printf(keyValue ~= "" and keyValue or "?", x + 12, y + h - 54, w - 24, "center")
+
+        if isWaiting then
+            love.graphics.setColor(1, 0.92, 0.5, 0.9)
+            love.graphics.printf(getLocaleText("keyConfigWaiting"), x + 12, y + h - 82, w - 24, "center")
+        end
+    end
+
+    love.graphics.setColor(1, 1, 1, 0.7)
+    love.graphics.printf(getLocaleText("keyConfigHelp"), layout.padding, displayHeight - font:getHeight() * 2, displayWidth - layout.padding * 2, "center")
+end
+
+local function drawSettingLine(y, label, value, isSelected)
+    love.graphics.setColor(isSelected and {1, 0.9, 0.4} or {1, 1, 1})
+    love.graphics.print(label .. ": " .. tostring(value), displayWidth/2, y)
 end
 
 local function adjustCurrentSetting(amount)
@@ -335,14 +473,22 @@ local function adjustCurrentSetting(amount)
         elseif selectedFieldIndex == 4 then
             settingsdata.playsettings.showfps = not settingsdata.playsettings.showfps
         end
+<<<<<<< Updated upstream
     elseif selectedIndex == 6 then
         -- Key bindings are changed by pressing Enter and then selecting a new key.
+=======
+    elseif selectedIndex == 5 then
+        return
+>>>>>>> Stashed changes
     end
 
     settings.save()
 end
 
+<<<<<<< Updated upstream
 --蛻晄悄蛟､
+=======
+>>>>>>> Stashed changes
 settingsdata={
     displaysettings={
     displaysize = {displayWidth, displayHeight},
@@ -529,6 +675,12 @@ end
 
 function settings.draw()
     updateLayout()
+
+    if selectedIndex == 5 then
+        drawKeyConfigScreen()
+        return
+    end
+
     love.graphics.setFont(Titlefont)
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(getLocaleText("title"), displayWidth/2 - Titlefont:getWidth(getLocaleText("title"))/2, layout.padding / 2)
@@ -538,12 +690,6 @@ function settings.draw()
     local panelH = layout.panelH
     local panelW = layout.leftWidth - layout.padding / 2
 
-    local panelPoly = ui.parallelogramPoly(layout.padding, layout.padding + panelW, panelY, panelY + panelH, slope)
-    love.graphics.setColor(0.05, 0.05, 0.05, 0.98)
-    love.graphics.polygon("fill", panelPoly)
-    love.graphics.setColor(1,1,1,0.12)
-    love.graphics.polygon("line", panelPoly)
-
     for i = 1, #categories do
         local bx = layout.padding + 16
         local by = panelY + (i - 1) * (layout.lineHeight + layout.spacing)
@@ -552,9 +698,10 @@ function settings.draw()
         local isSelected = i == selectedIndex
         local catPoly = ui.parallelogramPoly(bx, bx + bw, by, by + bh, slope)
         ui.drawParallelogram(catPoly, getLocaleText("categories")[i], Subtitlefont, {
-            color = isSelected and {0.18,0.18,0.18,0.96} or {0.10,0.10,0.10,0.92},
-            lineColor = isSelected and {1,1,1,0.24} or {1,1,1,0.08},
-            textPadding = 20
+            color = isSelected and {0.22,0.22,0.22,0.96} or {0.12,0.12,0.12,0.92},
+            lineColor = isSelected and {1,1,1,0.18} or {1,1,1,0.06},
+            textPadding = 20,
+            textColor = {1,1,1,0.96}
         })
     end
 
@@ -601,7 +748,7 @@ function settings.draw()
         
         local isSelected = selectedFieldIndex == i
         local fieldPoly = ui.parallelogramPoly(rx, rx + rw, ry, ry + rh, slope)
-        love.graphics.setColor(isSelected and {0.18, 0.18, 0.18, 0.96} or {0.08, 0.08, 0.08, 0.92})
+        love.graphics.setColor(isSelected and {0.20, 0.20, 0.20, 0.96} or {0.10, 0.10, 0.10, 0.92})
         love.graphics.polygon("fill", fieldPoly)
         love.graphics.setColor(1,1,1,0.08)
         love.graphics.polygon("line", fieldPoly)
@@ -659,6 +806,18 @@ end
 
 function settings.mousepressed(x, y, button)
     if button ~= 1 then
+        return
+    end
+
+    if selectedIndex == 5 then
+        for itemIndex = 1, #keyConfigItemOrder do
+            local rx, ry, rw, rh = getKeyConfigItemRect(itemIndex)
+            if isPointInRect(x, y, rx, ry, rw, rh) then
+                keyConfigSelectedIndex = itemIndex
+                beginKeyBinding(itemIndex)
+                return
+            end
+        end
         return
     end
 
@@ -764,6 +923,56 @@ function settings.openMenu()
 end
 
 function settings.keypressed(key, scancode, isrepeat)
+    if selectedIndex == 5 then
+        if keyConfigWaitingForKey then
+            if key == "escape" then
+                keyConfigWaitingForKey = false
+                keyConfigTargetField = nil
+                return
+            end
+
+            local normalizedKey = normalizeKeyBindingName(key, scancode)
+            if normalizedKey then
+                settingsdata.keysettings[keyConfigTargetField] = normalizedKey
+                settings.save()
+                keyConfigWaitingForKey = false
+                keyConfigTargetField = nil
+            end
+            return
+        end
+
+        if key == "left" or key == "a" or key == "kpleft" then
+            keyConfigSelectedIndex = math_max(1, keyConfigSelectedIndex - 1)
+            return
+        end
+
+        if key == "right" or key == "d" or key == "kpright" then
+            keyConfigSelectedIndex = math_min(#keyConfigItemOrder, keyConfigSelectedIndex + 1)
+            return
+        end
+
+        if key == "up" or key == "w" or key == "kpup" then
+            keyConfigSelectedIndex = math_max(1, keyConfigSelectedIndex - 4)
+            return
+        end
+
+        if key == "down" or key == "s" or key == "kpdown" then
+            keyConfigSelectedIndex = math_min(#keyConfigItemOrder, keyConfigSelectedIndex + 4)
+            return
+        end
+
+        if key == "return" or key == "space" or key == "kpenter" then
+            beginKeyBinding(keyConfigSelectedIndex)
+            return
+        end
+
+        if key == "escape" then
+            selectedIndex = keyConfigReturnIndex or 4
+            selectedFieldIndex = 1
+            return
+        end
+    end
+
     if key == "escape" then
         if keybindTarget then
             keybindTarget = nil

@@ -1,4 +1,8 @@
+<<<<<<< Updated upstream
 local musicselect={}
+=======
+﻿local musicselect={}
+>>>>>>> Stashed changes
 local log = require "log"
 local audiocache = require "audiocache"
 local createsfb = require "createsfb"
@@ -28,6 +32,7 @@ local startupCollections = nil
 local startupPreviewSources = nil
 local startupAssetsConsumed = false
 local playCollections = nil
+local playCollectionsIndex = nil
 local captureSelectionState
 local refreshAfterSfbGeneration
 
@@ -1242,6 +1247,10 @@ local function buildSelectedCollectionsForPlay(selectedIndex)
         end
     end
 
+    if selectedChart then
+        preloadChartEntry(selectedChart)
+    end
+
     local cachedJacket = getJacketImage(selectedIndex)
     if type(selectedImage) == "table" then
         selectedImage._cachedJacketImage = cachedJacket or false
@@ -1258,29 +1267,40 @@ local function buildSelectedCollectionsForPlay(selectedIndex)
 end
 
 function musicselect.getPlayCollections()
+    local currentIndex = tonumber(musicselect.selectedIndex) or 0
+    if playCollections and playCollectionsIndex == currentIndex then
+        return playCollections
+    end
+
+    local selectedPlayCollections = buildSelectedCollectionsForPlay(currentIndex)
+    playCollections = selectedPlayCollections
+    playCollectionsIndex = currentIndex
     return playCollections
 end
 
 function musicselect.reloadCollectionsForPlay()
-    if true then
-        playCollections = nil
-        return nil
-    end
-
-    local selectedPlayCollections = buildSelectedCollectionsForPlay(musicselect.selectedIndex)
-    if not selectedPlayCollections then
+    local currentIndex = tonumber(musicselect.selectedIndex) or 0
+    playCollections = buildSelectedCollectionsForPlay(currentIndex)
+    playCollectionsIndex = currentIndex
+    if not playCollections then
         log.warn("[Preparing to play] Could not secure the selected song data.")
         return nil
     end
 
     log.info(string.format(
         "[play準備] 選択曲のみをメモリから引き渡します: audio=%d charts=%d images=%d",
+<<<<<<< Updated upstream
         #(selectedPlayCollections.audio or {}),
         #(selectedPlayCollections.charts or {}),
         #(selectedPlayCollections.images or {})
+=======
+        #(playCollections.audio or {}),
+        #(playCollections.charts or {}),
+        #(playCollections.images or {})
+>>>>>>> Stashed changes
     ))
 
-    return selectedPlayCollections
+    return playCollections
 end
 
 function musicselect.setCollections(c)
@@ -1289,6 +1309,7 @@ function musicselect.setCollections(c)
     filteredCollections = nil
     cachedChartData = nil
     playCollections = nil
+    playCollectionsIndex = nil
     if previousCollections ~= collections then
         chartMetaCache = {}
     end

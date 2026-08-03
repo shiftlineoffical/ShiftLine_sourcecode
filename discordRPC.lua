@@ -1,22 +1,58 @@
 ﻿local ffi = require("ffi")
+<<<<<<< Updated upstream
+=======
+local log = require("log")
+>>>>>>> Stashed changes
 
 local discordRPC = {}
 
+local function resolveDiscordRpcPath()
+    local candidates = {}
+
+    local sourceRoot = love and love.filesystem and love.filesystem.getSource and love.filesystem.getSource()
+    if sourceRoot and sourceRoot ~= "" then
+        candidates[#candidates + 1] = sourceRoot .. "/lib/plugins/DiscordRPC/Win/discord-rpc.dll"
+        candidates[#candidates + 1] = sourceRoot .. "/discord-rpc.dll"
+    end
+
+    candidates[#candidates + 1] = "C:/Users/あほ/Documents/GitHub/ShiftLine_sourcecode/lib/plugins/DiscordRPC/Win/discord-rpc.dll"
+    candidates[#candidates + 1] = "C:/Users/あほ/Documents/GitHub/ShiftLine_sourcecode/discord-rpc.dll"
+    candidates[#candidates + 1] = "C:/discord-rpc.dll"
+    candidates[#candidates + 1] = "lib/plugins/DiscordRPC/Win/discord-rpc.dll"
+
+    for _, candidate in ipairs(candidates) do
+        local f = io.open(candidate, "rb")
+        if f then
+            f:close()
+            return candidate
+        end
+    end
+
+    return nil
+end
+
 local function loadDiscordRpc()
-    local ok, lib = pcall(ffi.load, "discord-rpc")
+    local path = resolveDiscordRpcPath()
+
+    log.info("DiscordRPC: trying path " .. tostring(path or "<none>"))
+    log.info("DiscordRPC: source = " .. tostring(love and love.filesystem and love.filesystem.getSource and love.filesystem.getSource() or "unknown"))
+
+    if not path then
+        log.info("DiscordRPC: DLL not found in any candidate path")
+        return nil
+    end
+
+    local ok, lib = pcall(ffi.load, path)
+
+    log.info("DiscordRPC: OK = " .. tostring(ok))
+    log.info("DiscordRPC: LIB/ERR = " .. tostring(lib))
+
     if not ok or not lib then
         return nil
     end
 
     ffi.cdef([[
-        typedef struct { const char* state; const char* details; int64_t startTimestamp; int64_t endTimestamp; const char* largeImageKey; const char* largeImageText; const char* smallImageKey; const char* smallImageText; const char* partyId; int partySize; int partyMax; const char* matchSecret; const char* joinSecret; const char* spectateSecret; const char* instance; } DiscordRichPresence;
-        typedef struct { int size; const char* version; } DiscordEventHandlers;
-        void Discord_Initialize(const char* applicationId, DiscordEventHandlers* handlers, int autoRegister, const char* optionalSteamId);
-        void Discord_Shutdown(void);
-        void Discord_RunCallbacks(void);
-        void Discord_UpdatePresence(const DiscordRichPresence* presence);
-        void Discord_ClearPresence(void);
-        void Discord_Respond(const char* userId, const char* reply);
+        ...
     ]])
 
     return lib

@@ -87,6 +87,7 @@ function scratchsfs.load()
     end
 
     local basePaths = {"lib/data/Storys"}
+<<<<<<< Updated upstream
     -- AppData（保存領域）はまず LÖVE のファイルシステム内の相対パスを優先して参照する
     if love and love.filesystem and love.filesystem.getSaveDirectory then
         basePaths[#basePaths+1] = "ShiftLine/Storys"
@@ -96,6 +97,12 @@ function scratchsfs.load()
             local appSongs = appdata .. "/ShiftLine/Storys"
             basePaths[#basePaths+1] = appSongs
         end
+=======
+    local appdata = os.getenv("APPDATA") or os.getenv("HOME")
+    if appdata then
+        local appSongs = appdata .. "/ShiftLine/Storys"
+        basePaths[#basePaths+1] = appSongs
+>>>>>>> Stashed changes
     end
 
     local sflfoldname = {}

@@ -96,7 +96,7 @@ local function reportSongRequest(song, difficulty)
     if curl_output and curl_output ~= "" then
         local status_marker = curl_output:match("%-%-CURL_STATUS%-%-(%d+)")
         if status_marker then
-            status = tonumber(status_marker)
+            status = tonumber(status_marker) or 0
         else
             local last_status = nil
             for code in curl_output:gmatch("HTTP/[%d%.]+%s+(%d+)") do
@@ -117,29 +117,28 @@ local function reportSongRequest(song, difficulty)
         status = 500
     end
 
-    if not responseBody or responseBody == "" or status ~= 200 then
-        log.warn(string.format("[musiccount] request failed (status=%s) body=%s", tostring(status), tostring(responseBody)))
-        requestCountText = "Request count unavailable"
-        return nil
+    if not responseBody or responseBody == "" then
+        if status ~= 200 then
+            log.warn(string.format("[musiccount] request failed (status=%s) body=%s", tostring(status), tostring(responseBody)))
+            requestCountText = "Request count unavailable"
+            return nil
+        end
+        requestCountText = "Request sent"
+        log.info(string.format("[musiccount] %s sent but no response body", tostring(song)))
+        return true
     end
 
     if responseBody:sub(1, 5) == "<html" then
-        requestCountText = "Request count unavailable"
-        return nil
+        requestCountText = "Request sent"
+        log.info(string.format("[musiccount] %s sent with HTML response", tostring(song)))
+        return true
     end
 
     local ok, decoded = pcall(JSON.decode, JSON, responseBody)
     if not ok or type(decoded) ~= "table" then
-        log.warn(string.format("[musiccount] invalid JSON response: %s", tostring(responseBody)))
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    local success = decoded.success == true or tostring(decoded.status or ""):lower() == "ok"
-    if not success then
-        log.warn(string.format("[musiccount] server returned error: %s", tostring(decoded.message or decoded.status or "unknown")))
-        requestCountText = "Request count unavailable"
-        return decoded
+        requestCountText = "Request sent"
+        log.info(string.format("[musiccount] %s sent with invalid JSON response", tostring(song)))
+        return true
     end
 
     local countText = tostring(decoded.count or decoded.song or "?")
@@ -149,7 +148,13 @@ local function reportSongRequest(song, difficulty)
 
     requestCountText = "Request count: " .. countText
     log.info(string.format("[musiccount] %s result=%s", song, tostring(countText)))
-    return decoded
+
+    if decoded.success == true or tostring(decoded.status or ""):lower() == "ok" then
+        return decoded
+    end
+
+    log.info(string.format("[musiccount] %s returned warning or non-ok status: %s", tostring(song), tostring(decoded.message or decoded.status or "unknown")))
+    return true
 end
 
 -- 難易度表示のフォーマット関数
@@ -435,22 +440,80 @@ local function isNoteJudgeDirectionAligned(note, laneDir)
     return isNoteGravityAlignedWithLane(getNoteResolvedGravity(note), laneDir)
 end
 
+local function normalizeConfiguredInputToken(token)
+    if token == nil then
+        return nil
+    end
+
+    if type(token) ~= "string" then
+        token = tostring(token)
+    end
+
+    token = token:lower()
+    if token == "" then
+        return nil
+    end
+    if token == " " then
+        return "space"
+    end
+    return token
+end
+
+local function getConfiguredLaneBinding(laneName)
+    if settingsdata and settingsdata.keysettings and type(settingsdata.keysettings[laneName]) == "string" then
+        local token = settingsdata.keysettings[laneName]
+        if token ~= "" then
+            return normalizeConfiguredInputToken(token)
+        end
+    end
+    return nil
+end
+
+local function getConfiguredInputToken(actionName)
+    if settingsdata and settingsdata.keysettings and type(settingsdata.keysettings[actionName]) == "string" then
+        local token = settingsdata.keysettings[actionName]
+        if token ~= "" then
+            return normalizeConfiguredInputToken(token)
+        end
+    end
+    return nil
+end
+
 local function resolveLaneInput(key, scancode)
+    local laneBindings = {
+        {name = "leftone", lane = 1},
+        {name = "lefttwo", lane = 2},
+        {name = "lefttree", lane = 3},
+        {name = "rightone", lane = 4},
+        {name = "righttwo", lane = 5},
+        {name = "righttree", lane = 6}
+    }
+
+    local normalizedKey = normalizeConfiguredInputToken(key)
+    local normalizedScancode = normalizeConfiguredInputToken(scancode)
+
+    for _, binding in ipairs(laneBindings) do
+        local token = getConfiguredLaneBinding(binding.name)
+        if token and (token == normalizedKey or (normalizedScancode and token == normalizedScancode)) then
+            return binding.lane
+        end
+    end
+
     local lane = nil
 
     if normalizeLaneGravity(lanegravity) == 4 then
-        lane = gravity4TopLaneInputMap[key]
-        if not lane and scancode then
-            lane = gravity4TopLaneInputMap[scancode]
+        lane = gravity4TopLaneInputMap[normalizedKey]
+        if not lane and normalizedScancode then
+            lane = gravity4TopLaneInputMap[normalizedScancode]
         end
         if lane then
             return lane
         end
     end
 
-    lane = laneInputMap[key]
-    if not lane and scancode then
-        lane = laneInputMap[scancode]
+    lane = laneInputMap[normalizedKey]
+    if not lane and normalizedScancode then
+        lane = laneInputMap[normalizedScancode]
     end
     return lane
 end
@@ -503,7 +566,28 @@ local function updateLaneHoldStatesFromKeyboard()
         laneHoldStates[lane] = false
     end
 
+    local tokens = {}
+    local seen = {}
+    local function addToken(token)
+        if not token or token == "" then
+            return
+        end
+        if not seen[token] then
+            seen[token] = true
+            tokens[#tokens + 1] = token
+        end
+    end
+
+    local laneBindings = {"leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree"}
+    for _, laneName in ipairs(laneBindings) do
+        addToken(getConfiguredLaneBinding(laneName))
+    end
+
     for _, inputToken in ipairs(laneInputTokens) do
+        addToken(inputToken)
+    end
+
+    for _, inputToken in ipairs(tokens) do
         if isInputTokenDown(inputToken) then
             local lane = resolveLaneInput(inputToken, inputToken)
             if lane then
@@ -594,6 +678,18 @@ end
 
 local function getLongNoteEndGraceSeconds()
     return math.max(0, tonumber(longNoteEndGraceMs) or 0) / 1000
+end
+
+local function shouldProcessLongHoldLogic()
+    if paused or waitingResume or finished then
+        return false
+    end
+
+    if not bgmSource or musicload ~= 1 then
+        return false
+    end
+
+    return songStarted == true
 end
 
 local function breakLongHold(pair)
@@ -852,6 +948,10 @@ local function updateMissJudgements(songTime)
 end
 
 local function updateLongHoldJudgements(songTime)
+    if not shouldProcessLongHoldLogic() then
+        return
+    end
+
     if not longNotePairs or #longNotePairs == 0 then
         return
     end
@@ -893,6 +993,10 @@ local function updateLongHoldJudgements(songTime)
 end
 
 local function registerLongHoldRelease(lane, songTime)
+    if not shouldProcessLongHoldLogic() then
+        return
+    end
+
     if not longNotePairs or #longNotePairs == 0 then
         return
     end
@@ -1165,10 +1269,17 @@ end
 local function ensureNoteSePoolLoaded()
     for i = 1, SE_COUNT do
         if not noteSE[i] then
-            noteSE[i] = love.audio.newSource("lib/data/BGM/note.ogg", "static")
+            local ok, source = pcall(love.audio.newSource, "lib/data/BGM/note.ogg", "static")
+            if ok and source then
+                noteSE[i] = source
+            else
+                noteSE[i] = nil
+                log.warn("Warning: Failed to load note SE source.")
+            end
         end
-        if noteSE[i] and noteSE[i].stop then
-            noteSE[i]:stop()
+        local s = noteSE[i]
+        if s and s.stop then
+            pcall(s.stop, s)
         end
     end
     seIndex = 1
@@ -2000,6 +2111,11 @@ end
 
 local function getNoteColor(noteType, tintEnabled)
     local t = tonumber(noteType) or 0
+    if t == 1 then
+        -- 1: ノーマルノーツをグレーに統一
+        return 0.7, 0.7, 0.7
+    end
+
     if not tintEnabled then
         if t == 3 then
             return 0.85, 0.85, 0.85
@@ -2007,10 +2123,7 @@ local function getNoteColor(noteType, tintEnabled)
         return 0.62, 0.66, 0.72
     end
 
-    if t == 1 then
-        -- 1: ノーマルノーツ
-        return 0.16, 0.78, 0.98
-    elseif t == 2 then
+    if t == 2 then
         -- 2: ロング始点
         return 0.24, 0.86, 1.0
     elseif t == 3 then
@@ -2422,6 +2535,14 @@ function play.setCollections(c)
         musicfiles = collections.audio or {}
         chartfiles = collections.charts or {}
         imagefiles = collections.images or {}
+
+        local collectionCount = 0
+        if type(musicfiles) == "table" then
+            collectionCount = #musicfiles
+        end
+        if collectionCount <= 1 and type(chartfiles) == "table" and #chartfiles <= 1 then
+            selectindex = 1
+        end
     else
         musicfiles = nil
         chartfiles = nil
@@ -2625,7 +2746,12 @@ local function resolveJacketEntry(selectedIndex)
         return nil
     end
 
-    local chartEntry = chartfiles and chartfiles[selectedIndex]
+    local normalizedIndex = tonumber(selectedIndex) or 1
+    if not chartfiles or not chartfiles[normalizedIndex] then
+        normalizedIndex = 1
+    end
+
+    local chartEntry = chartfiles and chartfiles[normalizedIndex]
     local chartArchive = type(chartEntry) == "table" and chartEntry.archive
     if chartArchive then
         for _, imageEntry in ipairs(imagefiles) do
@@ -2635,7 +2761,7 @@ local function resolveJacketEntry(selectedIndex)
         end
     end
 
-    return imagefiles[selectedIndex]
+    return imagefiles[normalizedIndex]
 end
 
 
@@ -2645,6 +2771,9 @@ end
 
 local function getSelectedSongDisplayData()
     local selectedIndex = tonumber(selectindex) or 1
+    if type(chartfiles) == "table" and #chartfiles > 0 and not chartfiles[selectedIndex] then
+        selectedIndex = 1
+    end
 
     local displayTitle = "Unknown Title"
     if type(musicname) == "string" and musicname ~= "" then
@@ -2662,7 +2791,10 @@ local function getSelectedSongDisplayData()
 
     local displayLevel = "Unknown Level"
     local rawLevel = "Unknown Level"
-    if type(musiclevel) == "string" and musiclevel ~= "" then
+    if type(musicdifficulty) == "string" and musicdifficulty ~= "" then
+        rawLevel = musicdifficulty
+        displayLevel = string.upper(musicdifficulty)
+    elseif type(musiclevel) == "string" and musiclevel ~= "" then
         rawLevel = musiclevel
         displayLevel = formatDifficultyLevel(musiclevel)
     elseif chartfiles and chartfiles[selectedIndex] and chartfiles[selectedIndex].level then
@@ -2730,6 +2862,7 @@ function musicdatadraw()
     local levelcolor = songData.levelColor or {1, 1, 1}
     local drawAlpha = alpha or 0
     local drawJacketAlpha = jacketalpha or 0
+    local displayx, displayy = getDisplaySize()
     if drawAlpha > 0.001 or drawJacketAlpha > 0.001 then
         metaDisplayShown = true
     end
@@ -2816,13 +2949,13 @@ function play.load()
     if songTitle == "" then
         songTitle = getSelectedSongDisplayData().title or ""
     end
-    reportSongRequest(songTitle, musiclevel or chartRuntime.difficulty or "")
-    log.info(tostring(musicname), tostring(musiclevel) .. "をプレイ")
+    local requestDifficulty = musicdifficulty or musiclevel or chartRuntime.difficulty or ""
+    reportSongRequest(songTitle, requestDifficulty)
+    log.info(tostring(musicname), tostring(requestDifficulty) .. "をプレイ")
 
-    local selectedIndex = tonumber(selectindex)
-    if not selectedIndex then
-        log.error("Error: Invalid selected index.")
-        return
+    local selectedIndex = tonumber(selectindex) or 1
+    if type(musicfiles) == "table" and #musicfiles > 0 and not musicfiles[selectedIndex] then
+        selectedIndex = 1
     end
 
     if not musicfiles or not musicfiles[selectedIndex] then
@@ -2842,20 +2975,19 @@ function play.load()
     end
     bgmSource:setLooping(false)
 
-    local selectedChart = chartfiles and chartfiles[selectedIndex]
+    local selectedChart = chartfiles and chartfiles[selectedIndex] or (chartfiles and chartfiles[1])
     local chartTable = loadChartTable(selectedChart, false)
+    local selectedDifficultyKey = musicdifficulty or musiclevel
     if chartTable then
-        local initialGravity = buildChartRuntime(chartTable, musiclevel)
+        local initialGravity = buildChartRuntime(chartTable, selectedDifficultyKey)
         notegravity = normalizeNoteGravity(initialGravity)
     else
-        buildChartRuntime(nil, musiclevel)
+        buildChartRuntime(nil, selectedDifficultyKey)
         notegravity = 1
         log.warn("Warning: chart data could not be loaded. notes will be empty.")
     end
-
     local metaDisplayTotal = getMetaDisplayTotalSeconds()
     startDelay = metaDisplayTotal + musicStartAfterMetaSeconds
-
     local jacketEntry = resolveJacketEntry(selectedIndex)
     jacketimg = buildJacketImage(jacketEntry)
     if not jacketimg and jacketEntry then
@@ -2906,8 +3038,9 @@ function reloadCurrentChart()
     longNotePairs = {}
     chartRuntime.currentIndex = 1
 
+    local selectedDifficultyKey = musicdifficulty or musiclevel
     if chartTable then
-        local initialGravity = buildChartRuntime(chartTable, musiclevel)
+        local initialGravity = buildChartRuntime(chartTable, selectedDifficultyKey)
         notegravity = normalizeNoteGravity(initialGravity)
         log.info("チャートを再読み込みしました")
         return true
@@ -3072,19 +3205,38 @@ function play.keypressed(key, scancode, isrepeat)
         handleLaneInputJudge(lane, judgeTime)
         if not isrepeat then
             triggerLanePressGlow(lane)
-            local s = noteSE[seIndex]
-			s:stop()
-			s:play()
+            local s = noteSE and noteSE[seIndex]
+            if s and s.stop and s.play then
+                pcall(s.stop, s)
+                pcall(s.play, s)
+            end
         end
         return
-    elseif key == "a" then
+    end
+
+    local normalizedKey = normalizeConfiguredInputToken(key)
+    local normalizedScancode = normalizeConfiguredInputToken(scancode)
+    local directionActions = {
+        moveup = 3,
+        movedown = 1,
+        moveleft = 2,
+        moveright = 4
+    }
+    for actionName, gravityValue in pairs(directionActions) do
+        local token = getConfiguredInputToken(actionName)
+        if token and (token == normalizedKey or token == normalizedScancode) then
+            lanegravity = gravityValue
+            return
+        end
+    end
+
+    if normalizedKey == "a" then
         lanegravity = 2
-        
-    elseif key == "s" then
+    elseif normalizedKey == "s" then
         lanegravity = 1
-    elseif key == "d" then
+    elseif normalizedKey == "d" then
         lanegravity = 4
-    elseif key == "w" then
+    elseif normalizedKey == "w" then
         lanegravity = 3
     end
 end

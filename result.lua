@@ -279,36 +279,38 @@ end
 
 local getRank
 
-local function getAddValue(scoreData)
-    local rank = getRank(scoreData)
-    local accuracy = getAccuracy(scoreData)
-
-    if rank == "SS" then
-        return 3.20 + accuracy * 0.40
-    elseif rank == "S" then
-        return 3.00 + accuracy * 0.35
-    elseif rank == "A" then
-        return 2.50 + accuracy * 0.30
-    elseif rank == "B" then
-        return 2.10 + accuracy * 0.22
-    elseif rank == "C" then
-        return 1.60 + accuracy * 0.15
-    end
-
-    return 0
-end
-
 local function getSongRating(scoreData, level)
     local difficulty = parseDifficultyValue(level)
-    local add = getAddValue(scoreData)
-    return difficulty * 1.20 + add
+    local accuracy = getAccuracy(scoreData) * 100
+    local base = math.max(0, difficulty)
+    local adjustedAccuracy = math.max(0, math.min(100, accuracy))
+    local ratio = ((adjustedAccuracy - 80) / 20)
+    local rating = base * (ratio * ratio)
+    return clamp(math.floor(rating * 100 + 0.5) / 100, 0, 15)
 end
 
 local function getRating(scoreData, level)
     local songRating = getSongRating(scoreData, level)
     local stats = settings and settings.settingsdata and settings.settingsdata.stats
-    if type(stats) == "table" and type(stats.ratingAverage) == "number" and stats.ratingAverage > 0 then
-        return stats.ratingAverage
+    if type(stats) == "table" then
+        local history = stats.ratingHistory
+        if type(history) == "table" and #history > 0 then
+            local sum = 0
+            local count = 0
+            for _, value in ipairs(history) do
+                if type(value) == "number" then
+                    sum = sum + value
+                    count = count + 1
+                end
+            end
+            if count > 0 then
+                return sum / count
+            end
+        end
+
+        if type(stats.ratingAverage) == "number" and stats.ratingAverage > 0 then
+            return stats.ratingAverage
+        end
     end
     return songRating
 end
@@ -350,6 +352,21 @@ local function updateRatingStats(rating)
     end
 end
 
+local function decodeGameJoltValue(value)
+    if type(value) ~= "string" then
+        return value
+    end
+
+    local ok, decoded = pcall(function()
+        return JSON:decode(value)
+    end)
+    if ok then
+        return decoded
+    end
+
+    return value
+end
+
 local function sendResultToGameJolt()
     if not gamejolt then
         log.warn("GameJolt module unavailable")
@@ -360,8 +377,8 @@ local function sendResultToGameJolt()
     local title, artist, level = tostring(_G.name or ""), tostring(_G.artist or ""), tostring(_G.level or "")
     local songRating = getSongRating(scoreData, level)
     local stats = settings and settings.settingsdata and settings.settingsdata.stats or {}
-    local ratingAvg = stats.ratingAverage or 0
-    local overallRating = (ratingAvg > 0) and ratingAvg or songRating
+    local overallRating = getRating(scoreData, level)
+    local ratingAvg = overallRating
 
     local payload = {
         song = title,
@@ -384,12 +401,58 @@ local function sendResultToGameJolt()
 
     if gamejolt.status and gamejolt.status.authenticated then
         local okScore, responseScore = pcall(function()
+<<<<<<< Updated upstream
             return gamejolt.submitScore(scoreData.score, scoreData.score, JSON:encode(payload), 1090059)
         end)
         if okScore and type(responseScore) == "table" and responseScore.success == "true" then
             log.info("GameJolt result score synced")
         else
             log.warn("GameJolt result score sync failed: " .. tostring((type(responseScore) == "table" and responseScore.message) or responseScore or "unknown"))
+=======
+            return gamejolt.setData("result_score", scoreData.score)
+        end)
+        if okScore and responseScore == true then
+            log.info("GameJolt result score synced to Data Store")
+        else
+            log.warn("GameJolt result score sync failed: " .. tostring((type(responseScore) == "table" and responseScore.message) or responseScore or "unknown"))
+        end
+
+        local okRating, responseRating = pcall(function()
+            return gamejolt.setData("result_rating", overallRating)
+        end)
+        if okRating and responseRating == true then
+            log.info("GameJolt result rating synced to Data Store")
+        else
+            log.warn("GameJolt result rating sync failed: " .. tostring((type(responseRating) == "table" and responseRating.message) or responseRating or "unknown"))
+        end
+
+        local okSummary, responseSummary = pcall(function()
+            return gamejolt.setData("result_summary", payload)
+        end)
+        if okSummary and responseSummary == true then
+            log.info("GameJolt result summary synced to Data Store")
+        else
+            log.warn("GameJolt result summary sync failed: " .. tostring((type(responseSummary) == "table" and responseSummary.message) or responseSummary or "unknown"))
+        end
+
+        local okLoadScore, responseLoadScore = pcall(function()
+            return gamejolt.fetchData("result_score")
+        end)
+        if okLoadScore and responseLoadScore and responseLoadScore.data ~= nil then
+            log.info("GameJolt result score loaded: " .. tostring(decodeGameJoltValue(responseLoadScore.data)))
+        else
+            log.warn("GameJolt result score load failed: " .. tostring((type(responseLoadScore) == "table" and responseLoadScore.message) or responseLoadScore or "unknown"))
+        end
+
+        local okLoadSummary, responseLoadSummary = pcall(function()
+            return gamejolt.fetchData("result_summary")
+        end)
+        if okLoadSummary and responseLoadSummary and responseLoadSummary.data ~= nil then
+            local loadedSummary = decodeGameJoltValue(responseLoadSummary.data)
+            log.info("GameJolt result summary loaded: " .. tostring(type(loadedSummary) == "table" and loadedSummary.song or loadedSummary))
+        else
+            log.warn("GameJolt result summary load failed: " .. tostring((type(responseLoadSummary) == "table" and responseLoadSummary.message) or responseLoadSummary or "unknown"))
+>>>>>>> Stashed changes
         end
     end
 
@@ -728,7 +791,7 @@ function result.draw()
     local rank = getRank(scoreData)
     local songRating = getSongRating(scoreData, tostring(_G.level or ""))
     local stats = settings and settings.settingsdata and settings.settingsdata.stats or {}
-    local ratingAvg = stats.ratingAverage or 0
+    local ratingAvg = getRating(scoreData, tostring(_G.level or ""))
     local bestRating = stats.bestRating or 0
     local accent = getAccent(rank)
     local title, artist, level, jacket = getSongMeta()

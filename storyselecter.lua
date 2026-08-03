@@ -1,11 +1,19 @@
 ﻿local story = {}
+<<<<<<< Updated upstream
 local displayWidth, displayHeight = love.graphics.getDimensions()
+=======
+local displayWidth, displayHeight
+if love and love.graphics and type(love.graphics.getDimensions) == "function" then
+    displayWidth, displayHeight = love.graphics.getDimensions()
+else
+    displayWidth, displayHeight = 800, 600
+end
+>>>>>>> Stashed changes
 local log = require "log"
 local json = require "JSON"
 local i18n = require "i18n"
 local ui = require "lib.ui"
 local scratchsfs = require "scratchsfs"
-local bluescreen = require "bluescreen"
 local storyplayer = require "storyplayer"
 
 -- UI管理
