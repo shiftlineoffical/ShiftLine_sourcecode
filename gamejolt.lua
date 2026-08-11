@@ -89,28 +89,17 @@ local function connection(force)
     gamejoltuserdata.user_token = gamejoltuser.user_token
 
     -- 必ず2引数で初期化
-<<<<<<< Updated upstream
-    gamejolt:init(1053992, "d9b3bdca24c8156fe10c485bdc827a25")
-
-    -- 認証
-    local auth_success = gamejolt:users_auth(gamejoltuserdata.userid, gamejoltuserdata.user_token)
-=======
     gamejoltapi:init(1053992, "d9b3bdca24c8156fe10c485bdc827a25")
 
     -- 認証
     local auth_success = gamejoltapi:users_auth(gamejoltuserdata.userid, gamejoltuserdata.user_token)
->>>>>>> Stashed changes
 
     if auth_success == "true" then
         log.info("GameJolt authentication successful.: " .. gamejoltuserdata.userid)
         updateStatus(true, "認証成功")
 
         -- 認証成功後にセッション開始
-<<<<<<< Updated upstream
-        local session = gamejolt:sessions_open()
-=======
         local session = gamejoltapi:sessions_open()
->>>>>>> Stashed changes
         if session and session.success == "true" then
             log.info("GameJolt connection successful")
             updateStatus(true, "認証・接続成功")
@@ -119,11 +108,7 @@ local function connection(force)
         end
 
         -- ユーザー情報読み取り (userID 取得 -> users_fetch_uid で再取得)
-<<<<<<< Updated upstream
-        local okUn, userdata_uname = pcall(function() return gamejolt:users_fetch_uname(gamejoltuserdata.userid) end)
-=======
         local okUn, userdata_uname = pcall(function() return gamejoltapi:users_fetch_uname(gamejoltuserdata.userid) end)
->>>>>>> Stashed changes
         if okUn and userdata_uname and userdata_uname.users and userdata_uname.users[1] then
             local fetched = userdata_uname.users[1]
             local fetchedId = fetched.id
@@ -170,18 +155,33 @@ function gamejolt.init(self, id, key, args)
     return true
 end
 
-function gamejolt.authUser(username, token)
+function gamejolt.authUser(username, token, callback)
     if type(username) ~= "string" or username == "" then
+        if type(callback) == "function" then
+            callback(false, "invalid username")
+        end
         return false
     end
 
     gamejoltuser.userid = username or ""
     gamejoltuser.user_token = token or ""
-    return connection(true)
+    local ok, response = connection(true)
+    if type(callback) == "function" then
+        callback(ok, response)
+    end
+    return ok, response
 end
 
 function gamejolt.openSession()
     return connection(true)
+end
+
+function gamejolt.update(dt)
+    if gamejolt.status and gamejolt.status.authenticated then
+        pcall(function()
+            gamejoltapi:sessions_ping("active")
+        end)
+    end
 end
 
 function gamejolt.pingSession(active)
@@ -300,12 +300,20 @@ function gamejolt.fetchStorageKeys(isGlobal)
     return ok and response or nil, response
 end
 
-function gamejolt.giveTrophy(id)
+function gamejolt.giveTrophy(id, callback)
     local ok, response = pcall(function()
         return gamejoltapi:trophies_addAcheived(id)
     end)
     response = normalizeResponse(response)
-    return ok and response and response.success == "true", response
+    local success = ok and response and response.success == "true"
+    if type(callback) == "function" then
+        callback(success, response)
+    end
+    return success, response
+end
+
+function gamejolt.addTrophy(id, callback)
+    return gamejolt.giveTrophy(id, callback)
 end
 
 function gamejolt.fetchTrophy(id)
@@ -332,9 +340,13 @@ function gamejolt.fetchAllTrophies()
     return ok and response or nil, response
 end
 
-function gamejolt.addScore(scoreValue, desc, tableId, guestName, extraData)
+function gamejolt.addScore(scoreValue, desc, tableId, guestName, extraData, callback)
     local sortValue = desc or tostring(scoreValue or 0)
-    return gamejolt.submitScore(scoreValue, sortValue, extraData or guestName, tableId)
+    local ok, response = gamejolt.submitScore(scoreValue, sortValue, extraData or guestName, tableId)
+    if type(callback) == "function" then
+        callback(ok, response)
+    end
+    return ok, response
 end
 
 function gamejolt.fetchScores(limit, tableId)

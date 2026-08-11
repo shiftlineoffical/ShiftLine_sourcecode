@@ -882,11 +882,15 @@ function createsfb.load(opts)
         return nil
     end
 
+    local audioCount = type(loadedCollections) == "table" and type(loadedCollections.audio) == "table" and #(loadedCollections.audio) or 0
+    local chartCount = type(loadedCollections) == "table" and type(loadedCollections.charts) == "table" and #(loadedCollections.charts) or 0
+    local imageCount = type(loadedCollections) == "table" and type(loadedCollections.images) == "table" and #(loadedCollections.images) or 0
+
     log.info(string.format(
         "createsfb.load(): direct collections audio=%d charts=%d images=%d",
-        #(loadedCollections.audio or {}),
-        #(loadedCollections.charts or {}),
-        #(loadedCollections.images or {})
+        audioCount,
+        chartCount,
+        imageCount
     ))
 
     log.info("createsfb.load() completed (direct mode)")
@@ -941,7 +945,7 @@ function loadsflfile()
 
     for i = 1,#sflpath do
 
-        local data = readFile(sflpath[i])
+        local data = readFile(sflpath[i]) or ""
 
         sflmeta[i] = {}
         sfldiff[i] = {}
@@ -1175,8 +1179,8 @@ end
 
 -- 繝ｫ繝ｼ繝怜・縺ｧ螳牙・縺ｫ螳溯｡後〒縺阪ｋ繧医≧縺ｫ縲∬ｧ｣譫仙・逅・ｒ縲後う繝ｳ繝・ャ繧ｯ繧ｹ i縲阪↓蟇ｾ蠢懊＆縺帙∪縺・
 function loadsflfile_indexed(i)
-    local data = readFile(sflpath[i])
-    if not data then return end
+    local data = readFile(sflpath[i]) or ""
+    if data == "" then return end
 
     sflmeta[i] = {}
     sfldiff[i] = {}

@@ -1,18 +1,10 @@
 local ui = {}
 
-<<<<<<< Updated upstream
--- 生成: 平行四辺形ポリゴン (x1,y1) 左上 (x2,y2) 右上 で傾きを指定
-=======
->>>>>>> Stashed changes
 function ui.parallelogramPoly(x1, x2, y1, y2, slope)
     local dx = slope * (y2 - y1)
     return {x1, y1, x1 + dx, y2, x2 + dx, y2, x2, y1}
 end
 
-<<<<<<< Updated upstream
--- ポリゴンで塗りつぶし、枠、テキストを描画。テキストは幅に収まるようフォントサイズを縮小する
-=======
->>>>>>> Stashed changes
 function ui.drawParallelogram(poly, text, font, opts)
     opts = opts or {}
     local mx, my = love.mouse.getPosition()
@@ -74,10 +66,6 @@ function ui.drawParallelogram(poly, text, font, opts)
     love.graphics.pop()
 end
 
-<<<<<<< Updated upstream
--- 受け取った画像を最大幅/高さに収めるスケール値を返す
-=======
->>>>>>> Stashed changes
 function ui.scaleToFit(img, maxW, maxH)
     if not img or type(img.getWidth) ~= "function" then return 1 end
     local iw = img:getWidth()

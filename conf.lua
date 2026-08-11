@@ -3,7 +3,7 @@
     -- アプリ基本情報
     t.identity = "ShiftLine"
     t.version = "11.5"
-    t.console = false
+    t.console = true
 
     -- ウィンドウ設定（display）
     t.window.title = "ShiftLine - ver0.3.5"

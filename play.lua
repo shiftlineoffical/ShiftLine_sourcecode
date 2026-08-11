@@ -1,4 +1,4 @@
---[[
+﻿--[[
 linedirections = 判定ラインの向き
 1=下(初期値)
 2=左
@@ -2791,9 +2791,21 @@ local function getSelectedSongDisplayData()
 
     local displayLevel = "Unknown Level"
     local rawLevel = "Unknown Level"
+    local difficultyKey = nil
+
     if type(musicdifficulty) == "string" and musicdifficulty ~= "" then
-        rawLevel = musicdifficulty
-        displayLevel = string.upper(musicdifficulty)
+        local numericDifficulty = tostring(musicdifficulty):match("^%s*[%+%-]?%d+%.?%d*%s*$")
+        if not numericDifficulty then
+            difficultyKey = musicdifficulty
+        end
+    end
+    if not difficultyKey and type(musicselect) == "table" and type(musicselect.selectedDifficulty) == "string" and musicselect.selectedDifficulty ~= "" then
+        difficultyKey = musicselect.selectedDifficulty
+    end
+
+    if difficultyKey then
+        rawLevel = difficultyKey
+        displayLevel = string.upper(difficultyKey)
     elseif type(musiclevel) == "string" and musiclevel ~= "" then
         rawLevel = musiclevel
         displayLevel = formatDifficultyLevel(musiclevel)

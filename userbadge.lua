@@ -14,18 +14,12 @@ local avatarUrlAttempted = nil
 local badgeFont = nil
 
 local function ensureFont()
-    if badgeFont then
-        return badgeFont
+    if not badgeFont then
+        badgeFont = ui.newFont("lib/data/fonts/NotoSansJP-Light.ttf", 20)
+        if not badgeFont and love and love.graphics and love.graphics.newFont then
+            badgeFont = love.graphics.newFont(20)
+        end
     end
-
-    local okFont, fontOrErr = pcall(ui.newFont, "lib/data/fonts/NotoSansJP-Light.ttf", 20)
-    if okFont and fontOrErr then
-        badgeFont = fontOrErr
-        return badgeFont
-    end
-
-    badgeFont = love.graphics.getFont()
-    return badgeFont
 end
 
 local function getUrlExtension(url)
@@ -87,72 +81,41 @@ function userbadge.draw()
     if type(username) ~= "string" or username == "" then return end
 
     local ratingText = ""
-<<<<<<< Updated upstream
+    local settingsData = nil
     if settings and type(settings.settingsdata) == "table" then
-        local stats = settings.settingsdata.stats
+        settingsData = settings.settingsdata
+    elseif _G and _G.settingsdata then
+        settingsData = _G.settingsdata
+    end
+
+    if type(settingsData) == "table" then
+        local stats = settingsData.stats
         if type(stats) == "table" then
             local rating = tonumber(stats.ratingAverage) or tonumber(stats.lastRating)
             if type(rating) == "number" and rating > 0 then
                 ratingText = "  " .. string.format("%.2f", rating)
             end
-=======
-    local ratingValue = nil
-
-    if gamejolt and gamejolt.memory and type(gamejolt.memory) == "table" then
-        local cachedRating = gamejolt.memory.resultRating
-        if cachedRating ~= nil then
-            ratingValue = tonumber(cachedRating)
->>>>>>> Stashed changes
         end
     end
 
-    if type(ratingValue) ~= "number" and settings and type(settings.settingsdata) == "table" then
-        local stats = settings.settingsdata.stats
-        if type(stats) == "table" then
-            ratingValue = tonumber(stats.ratingAverage) or tonumber(stats.lastRating)
-        end
+    ensureFont()
+    if not badgeFont or type(badgeFont.getWidth) ~= "function" then
+        return
     end
-
-    if type(ratingValue) == "number" and ratingValue > 0 then
-        ratingText = "  " .. string.format("%.2f", ratingValue)
-    end
-
-    local font = ensureFont()
 
     local prevFont = love.graphics.getFont()
     local r, g, b, a = love.graphics.getColor()
-    if font and type(font.getWidth) == "function" and type(font.getHeight) == "function" then
-        love.graphics.setFont(font)
-    else
-        love.graphics.setFont(prevFont)
-    end
+    love.graphics.setFont(badgeFont)
 
     local iconSize = 40
     local pad = 10
     local x = 10
     local y = 10
 
-    local nameText = username
-    local nameW = 0
-    local nameH = 20
-    local ratingW = 0
-    local ratingH = 20
-    local totalTextW = 0
-
-    if font and type(font.getWidth) == "function" and type(font.getHeight) == "function" then
-        nameW = font:getWidth(nameText)
-        nameH = font:getHeight()
-        ratingW = font:getWidth(ratingText)
-        ratingH = font:getHeight()
-    elseif prevFont and type(prevFont.getWidth) == "function" and type(prevFont.getHeight) == "function" then
-        nameW = prevFont:getWidth(nameText)
-        nameH = prevFont:getHeight()
-        ratingW = prevFont:getWidth(ratingText)
-        ratingH = prevFont:getHeight()
-    end
-
-    totalTextW = nameW + (ratingText ~= "" and (pad + ratingW) or 0)
-    local bgW = iconSize + pad + totalTextW + pad
+    local displayName = username .. ratingText
+    local textW = badgeFont:getWidth(displayName)
+    local textH = badgeFont:getHeight()
+    local bgW = iconSize + pad + textW + pad
     local bgH = iconSize
 
     love.graphics.setColor(0, 0, 0, 0.45)
@@ -169,15 +132,7 @@ function userbadge.draw()
     end
 
     love.graphics.setColor(1, 1, 1, 1)
-<<<<<<< Updated upstream
     love.graphics.print(displayName, x + iconSize + pad, y + math.floor((iconSize - textH) / 2 + 0.5))
-=======
-    local textY = y + math.floor((iconSize - math.max(nameH, ratingH)) / 2 + 0.5)
-    love.graphics.print(nameText, x + iconSize + pad, textY)
-    if ratingText ~= "" then
-        love.graphics.print(ratingText, x + iconSize + pad + nameW + pad, textY)
-    end
->>>>>>> Stashed changes
 
     love.graphics.setFont(prevFont)
     love.graphics.setColor(r, g, b, a)

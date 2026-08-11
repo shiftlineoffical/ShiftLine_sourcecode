@@ -401,16 +401,14 @@ local function sendResultToGameJolt()
 
     if gamejolt.status and gamejolt.status.authenticated then
         local okScore, responseScore = pcall(function()
-<<<<<<< Updated upstream
             return gamejolt.submitScore(scoreData.score, scoreData.score, JSON:encode(payload), 1090059)
         end)
         if okScore and type(responseScore) == "table" and responseScore.success == "true" then
             log.info("GameJolt result score synced")
         else
             log.warn("GameJolt result score sync failed: " .. tostring((type(responseScore) == "table" and responseScore.message) or responseScore or "unknown"))
-=======
             return gamejolt.setData("result_score", scoreData.score)
-        end)
+        end
         if okScore and responseScore == true then
             log.info("GameJolt result score synced to Data Store")
         else
@@ -452,7 +450,7 @@ local function sendResultToGameJolt()
             log.info("GameJolt result summary loaded: " .. tostring(type(loadedSummary) == "table" and loadedSummary.song or loadedSummary))
         else
             log.warn("GameJolt result summary load failed: " .. tostring((type(responseLoadSummary) == "table" and responseLoadSummary.message) or responseLoadSummary or "unknown"))
->>>>>>> Stashed changes
+
         end
     end
 
