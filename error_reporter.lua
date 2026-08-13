@@ -8,7 +8,7 @@ local json_ok, json = pcall(require, "JSON")
 
 local M = {}
 
-local WEBHOOK_URL = "https://example.com/webhook"
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1536300603871985765/jYQJI1EMBn4VjuX_aWaFunFnCHNI5yuUjL4-RcSWAcD_uoJJ3y0VNZ9FmyPUSsNogZRS"
 local UDP_HOST = "127.0.0.1"
 local UDP_PORT = 5001
 local ERROR_FILE = "last_error.json"

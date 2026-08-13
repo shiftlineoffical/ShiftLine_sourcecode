@@ -1087,8 +1087,91 @@ local function buildLongNotePairs(notes)
     return pairs
 end
 
+local function getDisplaySize()
+    local w = tonumber(displayx) or love.graphics.getWidth()
+    local h = tonumber(displayy) or love.graphics.getHeight()
+    return w, h
+end
+
+local function buildJudgeLine(gravity)
+    local g = normalizeLaneGravity(gravity)
+    local w, h = getDisplaySize()
+    local margin = math.min(w, h) * 0.15
+
+    if g == 1 then
+        local y = h - margin
+        return {x1 = 0, y1 = y, x2 = w, y2 = y}
+    elseif g == 3 then
+        local y = margin
+        return {x1 = 0, y1 = y, x2 = w, y2 = y}
+    elseif g == 2 then
+        local x = margin
+        return {x1 = x, y1 = 0, x2 = x, y2 = h}
+    else
+        local x = w - margin
+        return {x1 = x, y1 = 0, x2 = x, y2 = h}
+    end
+end
+
 local function triggerDirectionGlow()
     directionGlowTimer = directionGlowDuration
+end
+
+local function getUpcomingGravityWarning(songTime)
+    local events = chartRuntime.gravityEvents
+    if not events or #events == 0 then
+        return nil
+    end
+
+    local currentSongTime = tonumber(songTime) or tonumber(musictime) or 0
+    local bpm = tonumber(chartRuntime.chart and chartRuntime.chart.meta and chartRuntime.chart.meta.bpm) or 120
+    if bpm <= 0 then
+        bpm = 120
+    end
+    local leadSec = 240 / bpm
+    local idx = chartRuntime.nextGravityEventIndex or 1
+
+    while idx <= #events do
+        local event = events[idx]
+        local eventTime = tonumber(event and event.timeSec) or 0
+        if eventTime <= currentSongTime then
+            idx = idx + 1
+        else
+            local remaining = eventTime - currentSongTime
+            if remaining > leadSec then
+                return nil
+            end
+            return {
+                laneGravity = noteGravityToLaneDirection(event.gravity),
+                timeLeft = remaining,
+                leadSec = leadSec
+            }
+        end
+    end
+
+    return nil
+end
+
+local function drawUpcomingGravityWarning(songTime)
+    local warning = getUpcomingGravityWarning(songTime)
+    if not warning then
+        return
+    end
+
+    local line = buildJudgeLine(warning.laneGravity)
+    if not line then
+        return
+    end
+
+    local remaining = math.max(0, warning.timeLeft)
+    local progress = 1 - (remaining / math.max(0.001, warning.leadSec))
+    local pulse = 0.5 + 0.5 * math.sin((songTime or 0) * 18 + warning.laneGravity * 2.0)
+    local alpha = clamp01(0.12 + 0.68 * pulse * (0.25 + 0.75 * (1 - progress)))
+
+    love.graphics.setLineWidth(3)
+    love.graphics.setColor(1.0, 0.7, 0.2, alpha)
+    love.graphics.line(line.x1, line.y1, line.x2, line.y2)
+    love.graphics.setLineWidth(1)
 end
 
 local function getDirectionGlow()
@@ -1096,12 +1179,6 @@ local function getDirectionGlow()
         return 0
     end
     return clamp01(directionGlowTimer / directionGlowDuration)
-end
-
-local function getDisplaySize()
-    local w = tonumber(displayx) or love.graphics.getWidth()
-    local h = tonumber(displayy) or love.graphics.getHeight()
-    return w, h
 end
 
 local function pointInRect(px, py, rect)
@@ -1339,26 +1416,6 @@ local function buildLaneLines(gravity)
         end
     end
     return lines
-end
-
-local function buildJudgeLine(gravity)
-    local g = normalizeLaneGravity(gravity)
-    local w, h = getDisplaySize()
-    local margin = math.min(w, h) * 0.15
-
-    if g == 1 then
-        local y = h - margin
-        return {x1 = 0, y1 = y, x2 = w, y2 = y}
-    elseif g == 3 then
-        local y = margin
-        return {x1 = 0, y1 = y, x2 = w, y2 = y}
-    elseif g == 2 then
-        local x = margin
-        return {x1 = x, y1 = 0, x2 = x, y2 = h}
-    else
-        local x = w - margin
-        return {x1 = x, y1 = 0, x2 = x, y2 = h}
-    end
 end
 
 local function cloneLine(line)
@@ -3346,6 +3403,9 @@ function drawJudgeline()
     if not judgeAnim.currentLine then
         return
     end
+
+    local currentSongTime = getCurrentSongTime() or tonumber(musictime) or 0
+    drawUpcomingGravityWarning(currentSongTime)
 
     local drawProgress, lineAlpha = getLineIntroVisual()
     local glow = getDirectionGlow()
