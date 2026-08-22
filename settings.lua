@@ -23,6 +23,7 @@ local math_min = math.min
 
 local settings = {}
 
+local utf8 = require("utf8")
 local log = require("log")
 local gamejolt = require("gamejolt")
 local JSON = require("JSON")
@@ -35,6 +36,7 @@ local function isCloudoampUser()
 end
 
 local categoryColors = {
+    {0.75, 0.75, 0.75},
     {0.75, 0.75, 0.75},
     {0.75, 0.75, 0.75},
     {0.75, 0.75, 0.75},
@@ -56,14 +58,40 @@ keyConfigWaitingForKey = false
 keyConfigTargetField = nil
 keyConfigReturnIndex = 4
 
-local categories = {"display", "audio", "misc", "play", "key"}
+-- Feedback form state
+local feedbackSubject = ""
+local feedbackBody = ""
+local feedbackStatus = nil -- nil, "sending", "sent", "error"
+local feedbackStatusTime = 0
+local feedbackFocusedField = 1 -- 1 = subject, 2 = body
+local feedbackTextInputEnabled = false
+local BACKSPACE_REPEAT_DELAY = 0.4
+local BACKSPACE_REPEAT_INTERVAL = 0.05
+local backspaceWasDown = false
+local backspaceHoldTime = 0
+local backspaceRepeatTimer = 0
+
+local function updateFeedbackTextInput()
+    local shouldEnable = selectedIndex == 6 and feedbackFocusedField ~= 3
+    if shouldEnable == feedbackTextInputEnabled then
+        return
+    end
+
+    feedbackTextInputEnabled = shouldEnable
+    if love.keyboard and love.keyboard.setTextInput then
+        love.keyboard.setTextInput(shouldEnable)
+    end
+end
+
+local categories = {"display", "audio", "misc", "play", "key", "feedback"}
 
 local settingFields = {
     {"displaySize", "displayMode", "vsync"},
     {"masterVolume", "musicVolume", "sfxVolume"},
     {"language", "timeout", "defaultLevel"},
     {"moveSpeed", "timing", "playLogSave", "showFPS"},
-    {"leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree"}
+    {"leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree"},
+    {"feedbackSubject", "feedbackBody", "feedbackSend"}
 }
 
 local displayResolutions = {
@@ -75,7 +103,7 @@ local displayResolutions = {
 local localeTexts = {
     jp = {
         title = "設定",
-        categories = {"表示", "音声", "その他", "プレイ", "キー"},
+        categories = {"表示", "音声", "その他", "プレイ", "キー", "フィードバック"},
         displaySize = "解像度",
         displayMode = "表示モード",
         vsync = "垂直同期",
@@ -94,6 +122,12 @@ local localeTexts = {
         website = "ウェブサイト",
         gamepage = "ゲームページ",
         twitter = "X(Twitter)",
+        feedbackSubject = "件名",
+        feedbackBody = "本文",
+        feedbackSend = "送信",
+        feedbackSending = "送信中...",
+        feedbackSent = "フィードバックを送信しました",
+        feedbackError = "送信に失敗しました",
         moveup = "上移動",
         movedown = "下移動",
         moveleft = "左移動",
@@ -118,7 +152,7 @@ local localeTexts = {
     },
     en = {
         title = "Settings",
-        categories = {"Display", "Audio", "Misc", "Play", "Key"},
+        categories = {"Display", "Audio", "Misc", "Play", "Key", "Feedback"},
         displaySize = "Display Size",
         displayMode = "Display Mode",
         vsync = "VSync",
@@ -137,6 +171,12 @@ local localeTexts = {
         website = "Website",
         gamepage = "Gamepage",
         twitter = "Twitter",
+        feedbackSubject = "Subject",
+        feedbackBody = "Body",
+        feedbackSend = "Send",
+        feedbackSending = "Sending...",
+        feedbackSent = "Feedback sent",
+        feedbackError = "Failed to send",
         moveup = "Move Up",
         movedown = "Move Down",
         moveleft = "Move Left",
@@ -207,6 +247,37 @@ local function getBooleanText(value)
         return getLocaleText("booleanOn")
     end
     return getLocaleText("booleanOff")
+end
+
+local function removeLastUTF8Char(text)
+    if type(text) ~= "string" or text == "" then
+        return ""
+    end
+
+    local byteStart = utf8.offset(text, -1)
+    if byteStart then
+        return text:sub(1, byteStart - 1)
+    end
+
+    return ""
+end
+
+local function wrapFeedbackText(text, maxWidth)
+    local lines = {}
+    for paragraph in (text .. "\n"):gmatch("(.-)\n") do
+        local line = ""
+        for _, codepoint in utf8.codes(paragraph) do
+            local character = utf8.char(codepoint)
+            if line ~= "" and font:getWidth(line .. character) > maxWidth then
+                table_insert(lines, line)
+                line = character
+            else
+                line = line .. character
+            end
+        end
+        table_insert(lines, line)
+    end
+    return table_concat(lines, "\n")
 end
 
 local function getDefaultLevelText(value)
@@ -627,12 +698,45 @@ local function adjustFieldAtPosition(x, y)
 end
 
 function settings.update(dt)
+    updateFeedbackTextInput()
+
+    local backspaceDown = selectedIndex == 6
+        and (feedbackFocusedField == 1 or feedbackFocusedField == 2)
+        and love.keyboard.isDown("backspace")
+    if backspaceDown then
+        if not backspaceWasDown then
+            backspaceHoldTime = 0
+            backspaceRepeatTimer = 0
+        else
+            backspaceHoldTime = backspaceHoldTime + dt
+            if backspaceHoldTime >= BACKSPACE_REPEAT_DELAY then
+                backspaceRepeatTimer = backspaceRepeatTimer + dt
+                local deletes = 0
+                while backspaceRepeatTimer >= BACKSPACE_REPEAT_INTERVAL and deletes < 64 do
+                    if feedbackFocusedField == 1 then
+                        feedbackSubject = removeLastUTF8Char(feedbackSubject)
+                    else
+                        feedbackBody = removeLastUTF8Char(feedbackBody)
+                    end
+                    backspaceRepeatTimer = backspaceRepeatTimer - BACKSPACE_REPEAT_INTERVAL
+                    deletes = deletes + 1
+                end
+            end
+        end
+    else
+        backspaceHoldTime = 0
+        backspaceRepeatTimer = 0
+    end
+    backspaceWasDown = backspaceDown
+
     for index = 1, #categories do
         local color = categoryColors[index]
-        if index == selectedIndex then
-            color[1], color[2], color[3] = 1.0, 1.0, 1.0
-        else
-            color[1], color[2], color[3] = 0.5, 0.5, 0.5
+        if color then
+            if index == selectedIndex then
+                color[1], color[2], color[3] = 1.0, 1.0, 1.0
+            else
+                color[1], color[2], color[3] = 0.5, 0.5, 0.5
+            end
         end
     end
 end
@@ -643,6 +747,11 @@ function settings.draw()
 
     if selectedIndex == 5 then
         drawKeyConfigScreen()
+        return
+    end
+    
+    if selectedIndex == 6 then
+        settings.feedbackdraw()
         return
     end
 
@@ -784,8 +893,148 @@ local function getCategoryRect(index)
     return x, y, w, h
 end
 
+local function getFeedbackFormLayout()
+    local panelY = layout.padding * 3
+    local panelH = displayHeight - layout.padding * 5
+    local panelW = displayWidth - layout.padding * 2
+    local formX = layout.padding + 40
+    local formW = panelW - 80
+    local labelHeight = font:getHeight()
+    local fieldHeight = math_min(56, math_max(40, labelHeight * 2))
+    local fieldSpacing = math_min(14, math_max(8, panelH * 0.02))
+    local formY = panelY + math_min(24, panelH * 0.06)
+    local subjectInputY = formY + labelHeight + 6
+    local bodyLabelY = subjectInputY + fieldHeight + fieldSpacing
+    local bodyInputY = bodyLabelY + labelHeight + 6
+    local availableBodyHeight = panelY + panelH - bodyInputY - fieldHeight - 32
+    local bodyFieldHeight = math_max(64, math_min(144, availableBodyHeight))
+    local buttonY = bodyInputY + bodyFieldHeight + 16
+    return formX, formW, formY, subjectInputY, bodyLabelY, bodyInputY, buttonY, fieldHeight, bodyFieldHeight
+end
+
+local function sendFeedbackToDiscord()
+    if feedbackStatus == "sending" then
+        return
+    end
+    
+    if feedbackSubject == "" or feedbackBody == "" then
+        feedbackStatus = "error"
+        feedbackStatusTime = os.time()
+        return
+    end
+    
+    feedbackStatus = "sending"
+    feedbackStatusTime = os.time()
+    local feedbackTimeText = os.date("%Y-%m-%d %H:%M:%S")
+        local MENTION_USER_ID = "1420740980457472000"
+    -- Build Discord webhook payload
+    local json = require("JSON")
+    local payload = {
+        username = "ShiftLineフィードバックおしらせくん",
+        content = "<@" .. MENTION_USER_ID .. ">\n" .."# 件名: " .. feedbackSubject .."\n# 時間\n**"..feedbackTimeText.. "**love\n# 本文:\n```\n" .. feedbackBody .. "\n```"
+    }
+    
+    local jsonStr = json:encode(payload)
+    
+    local FEEDBACK_WEBHOOK = "https://discord.com/api/webhooks/1538478639035977768/XKgGrGAZayJWFDhu4WETpnABOpvxe7lD7kHwdcGgA-M6IjS7w8YLd5qACKVbOl0xVk0V"
+
+
+
+    local curlPath = os.getenv("CURL") or "curl.exe"
+    local windir = os.getenv("WINDIR") or "C:\\Windows"
+    local systemCurl = windir .. "\\System32\\curl.exe"
+    local curlHandle = io.open(systemCurl, "rb")
+    if curlHandle then
+        curlHandle:close()
+        curlPath = systemCurl
+    end
+
+    local tempDir = os.getenv("TEMP") or os.getenv("TMP") or "C:\\Windows\\Temp"
+    local tempPath = tempDir .. "\\shiftline_feedback_" .. tostring(os.time()) .. ".json"
+    local tempHandle = io.open(tempPath, "wb")
+    local success = false
+    if tempHandle then
+        if tempHandle:write(jsonStr) then
+            success = true
+        end
+        tempHandle:close()
+    end
+    
+    if not success then
+        feedbackStatus = "error"
+        feedbackStatusTime = os.time()
+        return
+    end
+    
+    -- Discord returns 204 No Content on success, so inspect the HTTP status.
+    local cmd = string.format(
+        'cd /d "%s" && "%s" -sS -o NUL -w "%%{http_code}" -X POST -H "Content-Type: application/json" --data-binary @"%s" "%s"',
+        tempDir, curlPath, tempPath,
+        FEEDBACK_WEBHOOK
+    )
+    
+    local handle = io.popen(cmd)
+    if handle then
+        local statusStr = handle:read("*a") or ""
+        handle:close()
+        
+        local statusCode = tonumber(statusStr)
+        
+        if statusCode and statusCode >= 200 and statusCode < 300 then
+            feedbackStatus = "sent"
+            feedbackSubject = ""
+            feedbackBody = ""
+            print("[DEBUG] Feedback sent successfully (HTTP " .. statusCode .. ")")
+        else
+            feedbackStatus = "error"
+            print("[DEBUG] Feedback send failed (HTTP " .. tostring(statusCode or "unknown") .. ")")
+        end
+    else
+        feedbackStatus = "error"
+        print("[DEBUG] Failed to execute curl command")
+    end
+    
+    pcall(os.remove, tempPath)
+    
+    feedbackStatusTime = os.time()
+end
+
 function settings.mousepressed(x, y, button)
     if button ~= 1 then
+        return
+    end
+
+    updateLayout()
+    
+    print("[DEBUG] mousepressed called, selectedIndex=" .. selectedIndex .. ", x=" .. x .. ", y=" .. y)
+    
+    if selectedIndex == 6 then -- Feedback category
+        print("[DEBUG] In feedback category, feedbackFocusedField=" .. feedbackFocusedField)
+        local lang = settingsdata.miscsettings.language or "jp"
+        
+        local formX, formW, formY, subjectInputY, bodyLabelY, bodyInputY, buttonY, fieldHeight, bodyFieldHeight = getFeedbackFormLayout()
+
+        -- Subject field
+        if isPointInRect(x, y, formX, subjectInputY, formW, fieldHeight) then
+            feedbackFocusedField = 1
+            print("[DEBUG] Clicked subject field")
+            return
+        end
+        
+        -- Body field
+        if isPointInRect(x, y, formX, bodyInputY, formW, bodyFieldHeight) then
+            feedbackFocusedField = 2
+            print("[DEBUG] Clicked body field")
+            return
+        end
+        
+        -- Send button
+        if isPointInRect(x, y, formX, buttonY, formW, fieldHeight) then
+            feedbackFocusedField = 3
+            print("[DEBUG] Clicked send button")
+            sendFeedbackToDiscord()
+            return
+        end
         return
     end
 
@@ -806,6 +1055,10 @@ function settings.mousepressed(x, y, button)
         if isPointInRect(x, y, rx, ry, rw, rh) then
             selectedIndex = i
             selectedFieldIndex = 1
+            if i == 6 then
+                feedbackFocusedField = 1
+            end
+            print("[DEBUG] Clicked category " .. i .. ", selectedIndex=" .. selectedIndex)
             return
         end
     end
@@ -876,15 +1129,180 @@ function settings.playdraw()
     drawSettingLine(y + 100, "Play Log Save", tostring(settingsdata.playsettings.playlogsave), selectedFieldIndex == 3)
 end
 
+function settings.feedbackdraw()
+    updateLayout()
+    
+    local lang = settingsdata.miscsettings.language or "jp"
+    local locale = localeTexts[lang]
+    
+    -- Draw title
+    love.graphics.setFont(Titlefont)
+    love.graphics.setColor(1, 1, 1)
+    local titleText = locale.feedbackSubject:sub(1, 1) == "件" and "フィードバック" or "Feedback"
+    love.graphics.print(titleText, displayWidth/2 - Titlefont:getWidth(titleText)/2, layout.padding / 2)
+    
+    -- Draw background panel
+    love.graphics.setFont(Subtitlefont)
+    local panelX = layout.padding
+    local panelY = layout.padding * 3
+    local panelW = displayWidth - layout.padding * 2
+    local panelH = displayHeight - layout.padding * 5
+    
+    local panelPoly = ui.parallelogramPoly(panelX, panelX + panelW, panelY, panelY + panelH, slope)
+    love.graphics.setColor(0.05, 0.05, 0.05, 0.98)
+    love.graphics.polygon("fill", panelPoly)
+    love.graphics.setColor(1, 1, 1, 0.12)
+    love.graphics.polygon("line", panelPoly)
+    
+    -- Input form
+    love.graphics.setFont(font)
+    local formX, formW, formY, subjectInputY, bodyLabelY, bodyInputY, buttonY, fieldHeight, bodyFieldHeight = getFeedbackFormLayout()
+    
+    -- Subject field
+    love.graphics.setColor(1, 1, 1, 0.9)
+    love.graphics.print(locale.feedbackSubject .. ":", formX, formY)
+    
+    if feedbackFocusedField == 1 then
+        love.graphics.setColor(1, 1, 1, 0.3)
+    else
+        love.graphics.setColor(1, 1, 1, 0.1)
+    end
+    love.graphics.rectangle("fill", formX, subjectInputY, formW, fieldHeight)
+    
+    if feedbackFocusedField == 1 then
+        love.graphics.setColor(1, 1, 1, 0.8)
+    else
+        love.graphics.setColor(1, 1, 1, 0.3)
+    end
+    love.graphics.rectangle("line", formX, subjectInputY, formW, fieldHeight)
+    
+    -- Draw subject text with clipping
+    love.graphics.setScissor(formX, subjectInputY, formW, fieldHeight)
+    love.graphics.setColor(0.9, 0.9, 0.9, 1)
+    love.graphics.printf(wrapFeedbackText(feedbackSubject, formW - 24), formX + 12, subjectInputY + 9, formW - 24, "left")
+    love.graphics.setScissor()
+    
+    -- Body field
+    love.graphics.setColor(1, 1, 1, 0.9)
+    love.graphics.print(locale.feedbackBody .. ":", formX, bodyLabelY)
+    
+    if feedbackFocusedField == 2 then
+        love.graphics.setColor(1, 1, 1, 0.3)
+    else
+        love.graphics.setColor(1, 1, 1, 0.1)
+    end
+    love.graphics.rectangle("fill", formX, bodyInputY, formW, bodyFieldHeight)
+    
+    if feedbackFocusedField == 2 then
+        love.graphics.setColor(1, 1, 1, 0.8)
+    else
+        love.graphics.setColor(1, 1, 1, 0.3)
+    end
+    love.graphics.rectangle("line", formX, bodyInputY, formW, bodyFieldHeight)
+    
+    -- Draw body text with clipping
+    love.graphics.setScissor(formX, bodyInputY, formW, bodyFieldHeight)
+    love.graphics.setColor(0.9, 0.9, 0.9, 1)
+    love.graphics.printf(wrapFeedbackText(feedbackBody, formW - 24), formX + 12, bodyInputY + 9, formW - 24, "left")
+    love.graphics.setScissor()
+    
+    -- Send button
+    if feedbackFocusedField == 3 then
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.96)
+    else
+        love.graphics.setColor(0.1, 0.1, 0.1, 0.92)
+    end
+    love.graphics.rectangle("fill", formX, buttonY, formW, fieldHeight)
+    
+    if feedbackFocusedField == 3 then
+        love.graphics.setColor(1, 1, 1, 0.18)
+    else
+        love.graphics.setColor(1, 1, 1, 0.06)
+    end
+    love.graphics.rectangle("line", formX, buttonY, formW, fieldHeight)
+    
+    love.graphics.setColor(1, 1, 1, 0.96)
+    love.graphics.setFont(Subtitlefont)
+    if feedbackStatus == "sending" then
+        love.graphics.print(locale.feedbackSending, formX + 12, buttonY + 6)
+    elseif feedbackStatus == "sent" then
+        love.graphics.print(locale.feedbackSent, formX + 12, buttonY + 6)
+    elseif feedbackStatus == "error" then
+        love.graphics.print(locale.feedbackError, formX + 12, buttonY + 6)
+    else
+        love.graphics.print(locale.feedbackSend, formX + 12, buttonY + 6)
+    end
+    
+    -- Help text
+    love.graphics.setFont(font)
+    love.graphics.setColor(1, 1, 1, 0.6)
+    local helpText = lang == "jp" and "↑↓でフィールド切り替え、BackspaceとEnterで操作、ESCで戻る" or "Up/Down to switch fields, Enter/Backspace to edit, ESC to go back"
+    love.graphics.print(helpText, formX, displayHeight - layout.padding - 30)
+    
+    -- Status message fade out
+    if feedbackStatus and os.time() - feedbackStatusTime > 3 then
+        feedbackStatus = nil
+    end
+end
+
 function settings.openMenu()
     settings.previousProgram = programnumber
     selectedIndex = 1
     selectedFieldIndex = 1
+    feedbackFocusedField = 1
+    feedbackSubject = ""
+    feedbackBody = ""
+    feedbackStatus = nil
+    updateFeedbackTextInput()
     changeProgram(5)
 end
 
 function settings.keypressed(key, scancode, isrepeat)
-    if selectedIndex == 5 then
+    if selectedIndex == 6 then -- Feedback category
+        if key == "escape" then
+            selectedIndex = 1
+            selectedFieldIndex = 1
+            feedbackFocusedField = 1
+            return
+        end
+        
+        if feedbackFocusedField == 1 then
+            -- Subject input
+            if key == "backspace" and not isrepeat then
+                feedbackSubject = removeLastUTF8Char(feedbackSubject)
+            elseif key == "tab" or key == "down" or key == "return" then
+                if isrepeat and key == "return" then return end
+                feedbackFocusedField = 2
+            end
+            return
+        elseif feedbackFocusedField == 2 then
+            -- Body input
+            if key == "backspace" and not isrepeat then
+                feedbackBody = removeLastUTF8Char(feedbackBody)
+            elseif key == "return" then
+                if isrepeat then return end
+                feedbackFocusedField = 3
+            elseif key == "tab" then
+                if isrepeat then return end
+                feedbackFocusedField = 3
+            elseif key == "up" then
+                if isrepeat then return end
+                feedbackFocusedField = 1
+            end
+            return
+        elseif feedbackFocusedField == 3 then
+            -- Send button
+            if key == "return" or key == "space" then
+                sendFeedbackToDiscord()
+                feedbackFocusedField = 1
+            elseif key == "up" or key == "w" or key == "kpup" then
+                feedbackFocusedField = 2
+            elseif key == "tab" or key == "down" or key == "s" or key == "kpdown" then
+                feedbackFocusedField = 1
+            end
+            return
+        end
+    elseif selectedIndex == 5 then
         if keyConfigWaitingForKey then
             if key == "escape" then
                 keyConfigWaitingForKey = false
@@ -984,9 +1402,33 @@ function settings.keypressed(key, scancode, isrepeat)
     end
 
     if key == "return" or key == "kpenter" then
-        settings.save()
+        if selectedIndex == 6 then -- Feedback category
+            if feedbackFocusedField == 1 then
+                feedbackFocusedField = 2
+            elseif feedbackFocusedField == 2 then
+                sendFeedbackToDiscord()
+            end
+        else
+            settings.save()
+        end
         return
     end
+end
+
+function settings.textinput(t)
+    print("[DEBUG] textinput called, selectedIndex=" .. selectedIndex .. ", feedbackFocusedField=" .. feedbackFocusedField .. ", t=" .. t)
+    if selectedIndex == 6 then -- Feedback category
+        if feedbackFocusedField == 1 then
+            feedbackSubject = feedbackSubject .. t
+            print("[DEBUG] feedbackSubject updated: " .. feedbackSubject)
+            return
+        elseif feedbackFocusedField == 2 then
+            feedbackBody = feedbackBody .. t
+            print("[DEBUG] feedbackBody updated: " .. feedbackBody)
+            return
+        end
+    end
+    print("[DEBUG] textinput not processed")
 end
 
 return settings

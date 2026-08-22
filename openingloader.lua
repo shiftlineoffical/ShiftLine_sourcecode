@@ -150,40 +150,67 @@ local function updatechack()
     endsaccess = math_min(100, endsaccess + 10)
 end
 
+local function cacheStartupCollections(collections)
+    openingloader._collections = collections
+
+    if _G.main and type(_G.main) == "table" then
+        _G.main.startup = _G.main.startup or {}
+        _G.main.startup.collections = collections
+        _G.main.startup.previewSources = _G.main.startup.previewSources or {}
+    end
+
+    return collections
+end
+
 local function performHeavyLoad()
     -- Start update check in a separate thread to avoid blocking.
     pcall(function()
         if love and love.thread then
-            local thread = love.thread.newThread("openingloader_update_thread.lua")
-            thread:start()
+            local ok, thread = pcall(function() return love.thread.newThread("openingloader_update_thread.lua") end)
+            if ok and thread then
+                pcall(function() thread:start() end)
+            end
         else
             pcall(updatechack)
         end
     end)
 
     -- Start createsfb load in a separate thread to avoid blocking main thread.
+    local threadStarted = false
     pcall(function()
         if love and love.thread then
-            local ct = love.thread.newThread("createsfb_thread.lua")
-            ct:start()
-            openingloader._createsfbThreadStarted = true
-        else
-            -- fallback: blocking load
-            local ok, cols = pcall(sfbcheck)
-            if ok and type(cols) == "table" then
-                openingloader._collections = filterCollectionsByCharts(cols)
-            else
-                openingloader._collections = {audio = {}, charts = {}, images = {}}
+            local ok, thread = pcall(function() return love.thread.newThread("createsfb_thread.lua") end)
+            if ok and thread then
+                local startOk = pcall(function() thread:start() end)
+                if startOk then
+                    threadStarted = true
+                    openingloader._createsfbThreadStarted = true
+                    openingloader._threadStartTime = love.timer.getTime and love.timer.getTime() or 0
+                end
             end
         end
     end)
+
+    -- If thread didn't start, use fallback immediately
+    if not threadStarted then
+        log.info("Createsfb thread not available, using fallback sync load")
+        local ok, cols = pcall(sfbcheck)
+        if ok and type(cols) == "table" then
+            openingloader._collections = filterCollectionsByCharts(cols)
+            cacheStartupCollections(openingloader._collections)
+        else
+            openingloader._collections = {audio = {}, charts = {}, images = {}}
+        end
+    end
 
     -- Defer actual audio preload to update() so we can process per-frame.
     if not openingloader._collections then
         openingloader._audioPreloadState = nil
     else
         local entries = openingloader._collections.audio or {}
-        openingloader._audioPreloadState = {entries = entries, idx = 1, loaded = 0, total = #entries}
+        if #entries > 0 then
+            openingloader._audioPreloadState = {entries = entries, idx = 1, loaded = 0, total = #entries}
+        end
     end
 
     pcall(function() if play and type(play.preloadCommonAudio) == "function" then play.preloadCommonAudio() end end)
@@ -191,6 +218,10 @@ local function performHeavyLoad()
     pcall(function() if gamejolt and type(gamejolt.load) == "function" then gamejolt.load() end end)
 
     log.info("Started asynchronous createsfb and update tasks")
+end
+
+function openingloader.getCollections()
+    return openingloader._collections
 end
 
 function openingloader.load()
@@ -259,9 +290,12 @@ function openingloader.update(dt)
             local msg = ch:pop()
             if msg and type(msg) == "table" then
                 if msg.ok and type(msg.result) == "table" then
-                    openingloader._collections = filterCollectionsByCharts(msg.result)
+                    local collections = filterCollectionsByCharts(msg.result)
+                    cacheStartupCollections(collections)
                     local entries = openingloader._collections.audio or {}
-                    openingloader._audioPreloadState = {entries = entries, idx = 1, loaded = 0, total = #entries}
+                    if #entries > 0 then
+                        openingloader._audioPreloadState = {entries = entries, idx = 1, loaded = 0, total = #entries}
+                    end
                     pcall(function()
                         if musicselect and type(musicselect.setStartupAssets) == "function" then
                             musicselect.setStartupAssets(openingloader._collections, {})
@@ -275,13 +309,30 @@ function openingloader.update(dt)
                 else
                     log.warn("createsfb thread failed: " .. tostring(msg.err))
                 end
+            -- Thread timeout: if thread is still pending after 8 seconds, use fallback
+            elseif openingloader._createsfbThreadStarted and openingloader._threadStartTime then
+                local currentTime = love.timer.getTime and love.timer.getTime() or 0
+                if currentTime - openingloader._threadStartTime > 8 then
+                    log.warn("createsfb thread timeout, using fallback")
+                    local ok, cols = pcall(sfbcheck)
+                    if ok and type(cols) == "table" then
+                        cacheStartupCollections(filterCollectionsByCharts(cols))
+                    else
+                        cacheStartupCollections({audio = {}, charts = {}, images = {}})
+                    end
+                    openingloader._createsfbThreadStarted = false
+                    local entries = openingloader._collections.audio or {}
+                    if #entries > 0 then
+                        openingloader._audioPreloadState = {entries = entries, idx = 1, loaded = 0, total = #entries}
+                    end
+                end
             end
         end
     end
 
     if openingloader._audioPreloadState then
         local st = openingloader._audioPreloadState
-        local batch = 3
+        local batch = 6  -- Increased from 3 to 6 for faster preload
         for i = 1, batch do
             if st.idx > st.total then break end
             local entry = st.entries[st.idx]
@@ -294,12 +345,12 @@ function openingloader.update(dt)
             st.idx = st.idx + 1
         end
         if st.total > 0 then
-            endsaccess = math_min(100, endsaccess + (st.loaded / math_max(1, st.total)) * 5)
+            endsaccess = math_min(100, endsaccess + (st.loaded / math_max(1, st.total)) * 10)  -- Increased multiplier from 5 to 10
         end
         if st.idx > st.total then
             log.info(string_format("Preloaded audio at startup: %d/%d", st.loaded, st.total))
             openingloader._audioPreloadState = nil
-            endsaccess = math_min(100, endsaccess + 10)
+            endsaccess = math_min(100, endsaccess + 15)  -- Increased from 10 to 15
         end
     end
 

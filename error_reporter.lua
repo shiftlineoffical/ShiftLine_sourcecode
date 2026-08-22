@@ -1,28 +1,14 @@
-local socket_ok, socket = pcall(require, "socket")
-local http_ok, http = pcall(require, "socket.http")
-local https_ok, https = pcall(require, "ssl.https")
-local ltn12_ok, ltn12 = pcall(require, "ltn12")
-
 -- JSON.lua
 local json_ok, json = pcall(require, "JSON")
 
 local M = {}
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1536300603871985765/jYQJI1EMBn4VjuX_aWaFunFnCHNI5yuUjL4-RcSWAcD_uoJJ3y0VNZ9FmyPUSsNogZRS"
-local UDP_HOST = "127.0.0.1"
-local UDP_PORT = 5001
 local ERROR_FILE = "last_error.json"
+local MENTION_USER_ID = "1420740980457472000"
 
-local udp
-
-if socket_ok and socket and type(socket.udp) == "function" then
-    local ok
-    ok, udp = pcall(socket.udp)
-
-    if ok and udp then
-        pcall(udp.settimeout, udp, 0)
-        pcall(udp.setpeername, udp, UDP_HOST, UDP_PORT)
-    end
+local function sendUDP(data)
+    return false
 end
 
 
@@ -38,127 +24,67 @@ local function saveLocal(data)
     )
 end
 
-
-local function sendUDP(data)
-    if not udp or type(udp.send) ~= "function" then
+local function removeLocal()
+    if not (love and love.filesystem and love.filesystem.remove) then
         return false
     end
 
-    return pcall(udp.send, udp, data)
+    return pcall(
+        love.filesystem.remove,
+        ERROR_FILE
+    )
 end
 
+
+local function buildDiscordPayload(payload)
+    local message = tostring(payload.message or "")
+    local traceback = tostring(payload.traceback or "")
+    local osName = tostring(payload.os or "unknown")
+    local version = tostring(payload.version or "unknown")
+    local timeText = tostring(payload.time or os.date("%Y-%m-%d %H:%M:%S"))
+
+    return {
+        username = "ShiftLineクラッシュお知らせくん",
+        allowed_mentions = {
+            parse = { "users" }
+        },
+        content =
+            "<@" .. MENTION_USER_ID .. ">\n" ..
+            "# クラッシュデータ\n" ..
+            "## ID: `" .. tostring(payload.crash_id or "unknown") .. "`\n" ..
+            "## OS: `" .. osName .. "`\n" ..
+            "## Version: `" .. version .. "`\n" ..
+            "## 時間: `" .. timeText .. "`\n\n" ..
+            "# エラー:\n```text\n" ..
+            message ..
+            "\n```\n" ..
+            "## トラックバック:\n```text\n" ..
+            traceback ..
+            "\n```"
+    }
+end
 
 local function sendHTTP(jsonData)
     if type(WEBHOOK_URL) ~= "string" or WEBHOOK_URL == "" then
         return false
     end
 
-    local url = WEBHOOK_URL
-    local is_https = url:sub(1, 8):lower() == "https://"
+    local curl = os.getenv("CURL") or "curl.exe"
+    local cmd = string.format('%s -sS -X POST -H "Content-Type: application/json" --data-binary @- "%s"', curl, WEBHOOK_URL)
+    local pipe = io.popen(cmd, "w")
 
-    local host, path = url:match("^https?://([^/]+)(/.*)$")
-
-    if not host then
-        host = url:match("^https?://([^/]+)$")
-        path = "/"
-    end
-
-    if not host or not path then
+    if not pipe then
         return false
     end
 
-    local headers = {
-        ["Content-Type"] = "application/json",
-        ["Content-Length"] = tostring(#jsonData),
-        ["Connection"] = "close",
-        ["User-Agent"] = "Love2D CrashReporter"
-    }
+    pipe:write(jsonData)
+    local ok, _, code = pipe:close()
 
-    -- HTTPS
-    if is_https and https_ok and https and ltn12_ok then
-        local response_body = {}
-
-        local ok, status_code = pcall(
-            https.request,
-            {
-                url = url,
-                method = "POST",
-                headers = headers,
-                source = ltn12.source.string(jsonData),
-                sink = ltn12.sink.table(response_body)
-            }
-        )
-
-        return ok and (
-            status_code == 200 or
-            status_code == 201 or
-            status_code == 204
-        )
+    if ok == nil then
+        return false
     end
 
-    -- HTTP
-    if not is_https and http_ok and http and ltn12_ok then
-        local response_body = {}
-
-        local ok, status_code = pcall(
-            http.request,
-            {
-                url = url,
-                method = "POST",
-                headers = headers,
-                source = ltn12.source.string(jsonData),
-                sink = ltn12.sink.table(response_body)
-            }
-        )
-
-        return ok and (
-            status_code == 200 or
-            status_code == 201 or
-            status_code == 204
-        )
-    end
-
-    -- HTTP fallback
-    if not is_https
-        and socket_ok
-        and socket
-        and type(socket.tcp) == "function"
-    then
-        local tcp = socket.tcp()
-
-        if not tcp then
-            return false
-        end
-
-        tcp:settimeout(3)
-
-        local ok = pcall(
-            tcp.connect,
-            tcp,
-            host,
-            80
-        )
-
-        if not ok then
-            pcall(tcp.close, tcp)
-            return false
-        end
-
-        local request =
-            "POST " .. path .. " HTTP/1.1\r\n" ..
-            "Host: " .. host .. "\r\n" ..
-            "Content-Type: application/json\r\n" ..
-            "Content-Length: " .. tostring(#jsonData) .. "\r\n" ..
-            "Connection: close\r\n\r\n" ..
-            jsonData
-
-        pcall(tcp.send, tcp, request)
-        pcall(tcp.close, tcp)
-
-        return true
-    end
-
-    return false
+    return true
 end
 
 
@@ -187,27 +113,10 @@ function M.report(msg, trace)
     }
 
     local localJSON = json:encode_pretty(payload)
-
     saveLocal(localJSON)
+    removeLocal()
 
-    local discordPayload = {
-        username = "LÖVE Crash Reporter",
-
-        content =
-            "**Crash detected**\n" ..
-            "**Crash ID:** `" .. crashID .. "`\n" ..
-            "**OS:** `" .. payload.os .. "`\n" ..
-            "**Version:** `" .. payload.version .. "`\n" ..
-            "**Time:** `" .. payload.time .. "`\n\n" ..
-            "**Message:**\n```text\n" ..
-            payload.message ..
-            "\n```\n" ..
-            "**Traceback:**\n```text\n" ..
-            payload.traceback ..
-            "\n```"
-    }
-
-    local discordJSON = json:encode(discordPayload)
+    local discordJSON = json:encode(buildDiscordPayload(payload))
 
     sendUDP(localJSON)
     sendHTTP(discordJSON)
@@ -238,20 +147,26 @@ function M.resendIfExists()
         ERROR_FILE
     )
 
-    if ok and type(raw) == "string" and raw ~= "" then
-        sendUDP(raw)
-        sendHTTP(raw)
+    if ok and type(raw) == "string" and raw ~= "" and type(json.decode) == "function" then
+        local decoded = json:decode(raw)
 
-        pcall(
-            love.filesystem.remove,
-            ERROR_FILE
-        )
+        if type(decoded) == "table" then
+            removeLocal()
 
-        return true
+            local discordJSON = json:encode(buildDiscordPayload(decoded))
+            sendUDP(raw)
+            sendHTTP(discordJSON)
+
+            return true
+        end
     end
 
     return false
 end
+
+
+
+
 
 
 return M

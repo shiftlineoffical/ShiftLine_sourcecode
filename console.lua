@@ -1,8 +1,11 @@
 ﻿---@diagnostic disable: undefined-global, undefined-field
 local log = require "log"
 local i18n = require "i18n"
+local json_ok, JSON = pcall(require, "JSON")
 local ok_gamejolt, gamejolt = pcall(require, "gamejolt")
 local ok_gamejoltuser, gamejoltuser = pcall(require, "gamejoltuser")
+local ok_openingloader, openingloader = pcall(require, "openingloader")
+local ok_musicselect, musicselect = pcall(require, "musicselect")
 
 ---@class GlobalEnv
 ---@field editorStarted boolean
@@ -36,6 +39,7 @@ console = {
     input = "",
     lines = {},
     maxLines = 28,
+    scrollOffset = 0,
     flags = {
         debug_titles = true,
         debug_omitnotes = true,
@@ -336,6 +340,120 @@ local function copyConsoleOutput()
     end
 end
 
+local function getLoadedMusicEntries()
+    local collections = nil
+    local ms = musicselect or _G.musicselect
+
+    if ms and ms.getCollections then
+        local ok, result = pcall(ms.getCollections)
+        if ok and result then
+            collections = result
+        end
+    end
+
+    if not collections and _G.main and _G.main.startup and _G.main.startup.collections then
+        collections = _G.main.startup.collections
+    end
+
+    local sourceList = {}
+    if type(collections) == "table" then
+        if type(collections.audio) == "table" then
+            sourceList = collections.audio
+        elseif type(collections.songs) == "table" then
+            sourceList = collections.songs
+        elseif type(collections.music) == "table" then
+            sourceList = collections.music
+        end
+    end
+
+    local entries = {}
+    for i, entry in ipairs(sourceList) do
+        local info = {
+            index = i,
+            title = "Unknown",
+            artist = "",
+            level = "",
+            source = ""
+        }
+
+        if type(entry) == "table" then
+            info.title = entry.title or entry.name or entry.path or entry.archive or ("Entry " .. i)
+            info.artist = entry.artist or entry.author or entry.creator or entry.artistName or ""
+            info.level = entry.level or entry.difficulty or entry.diff or entry.musicLevel or ""
+            info.source = entry.source or entry.file or entry.path or entry.archive or ""
+        elseif type(entry) == "string" then
+            info.title = entry
+        end
+
+        entries[#entries + 1] = info
+    end
+
+    return entries
+end
+
+local function showLoadedMusicList()
+    local items = getLoadedMusicEntries()
+    if #items == 0 then
+        console.addLine("読み込まれた楽曲一覧はありません")
+        return
+    end
+
+    console.addLine("[Loaded music list] total=" .. #items)
+    for _, item in ipairs(items) do
+        local meta = {}
+        if item.artist and item.artist ~= "" then
+            table.insert(meta, tostring(item.artist))
+        end
+        if item.level and item.level ~= "" then
+            table.insert(meta, "Lv:" .. tostring(item.level))
+        end
+        local suffix = ""
+        if #meta > 0 then
+            suffix = " / " .. table.concat(meta, " / ")
+        end
+        console.addLine(string.format("[%02d] %s%s", item.index, tostring(item.title), suffix))
+    end
+end
+
+local function writeLoadedMusicListToFile()
+    local items = getLoadedMusicEntries()
+    if #items == 0 then
+        console.addLine("読み込まれた楽曲一覧はありません")
+        return
+    end
+
+    local payload = {
+        total = #items,
+        items = items
+    }
+
+    local data = JSON and JSON:encode_pretty(payload) or "{\n  \"total\": " .. #items .. ",\n  \"items\": [\n"
+    for i, item in ipairs(items) do
+        local line = "    {\n      \"index\": " .. item.index .. ",\n      \"title\": \"" .. tostring(item.title):gsub("\\", "\\\\"):gsub("\n", "\\n"):gsub("\"", "\\\"") .. "\",\n"
+        line = line .. "      \"artist\": \"" .. tostring(item.artist):gsub("\\", "\\\\"):gsub("\n", "\\n"):gsub("\"", "\\\"") .. "\",\n"
+        line = line .. "      \"level\": \"" .. tostring(item.level):gsub("\\", "\\\\"):gsub("\n", "\\n"):gsub("\"", "\\\"") .. "\"\n    }"
+        if i < #items then
+            line = line .. ","
+        end
+        data = data .. line .. "\n"
+    end
+    if not JSON then
+        data = data .. "  ]\n}"
+    end
+
+    if love and love.filesystem and love.filesystem.write then
+        local ok, err = pcall(love.filesystem.write, "loaded_music_list.json", data)
+        if ok then
+            console.addLine("loaded_music_list.json に楽曲一覧をJSON出力しました")
+            return
+        end
+        console.addLine("ファイル出力に失敗しました: " .. tostring(err))
+        return
+    end
+
+    console.addLine("love.filesystem.write が利用できません")
+end
+
 local function showWatchwuserInfo(args)
     local musicselect_ok, musicselect = pcall(require, "musicselect")
     if not musicselect_ok or not musicselect then
@@ -376,12 +494,103 @@ local function showWatchwuserInfo(args)
     end
 end
 
+local function checkStartupCache()
+    console.addLine("[Startup Cache Check]")
+    local ok, msg = true, ""
+    
+    if _G.main and _G.main.startup and _G.main.startup.collections then
+        console.addLine("main.startup.collections: OK")
+    else
+        console.addLine("main.startup.collections: NOT FOUND")
+        ok = false
+    end
+    
+    local ms = musicselect or _G.musicselect
+    if ms and ms.getCollections then
+        local result = pcall(ms.getCollections)
+        if result then
+            console.addLine("musicselect.getCollections: OK")
+        else
+            console.addLine("musicselect.getCollections: ERROR")
+            ok = false
+        end
+    else
+        console.addLine("musicselect.getCollections: NOT AVAILABLE")
+    end
+    
+    if ok then
+        console.addLine("Startup cache: ALL SYSTEMS OK")
+    else
+        console.addLine("Startup cache: ISSUE DETECTED")
+    end
+end
+
+local function checkOpeningloaderStatus()
+    console.addLine("[Openingloader Cache Status]")
+    
+    -- Try local require first, fallback to _G.openingloader
+    local ol = openingloader or _G.openingloader
+    if not ol then
+        console.addLine("openingloader: NOT LOADED")
+        return
+    end
+    
+    console.addLine("openingloader: LOADED")
+    
+    if ol._collections then
+        console.addLine("openingloader._collections: EXISTS")
+        local cols = ol._collections
+        if type(cols) == "table" then
+            local audioCount = type(cols.audio) == "table" and #cols.audio or 0
+            local chartCount = type(cols.charts) == "table" and #cols.charts or 0
+            console.addLine(string.format("  - audio: %d items", audioCount))
+            console.addLine(string.format("  - charts: %d items", chartCount))
+            if audioCount == 0 then
+                console.addLine("  WARNING: No audio entries found")
+            end
+        end
+    else
+        console.addLine("openingloader._collections: NOT SET")
+    end
+    
+    if type(ol.getCollections) == "function" then
+        console.addLine("openingloader.getCollections: AVAILABLE")
+        local result = pcall(ol.getCollections)
+        if result then
+            console.addLine("  - Function call: OK")
+        else
+            console.addLine("  - Function call: FAILED")
+        end
+    else
+        console.addLine("openingloader.getCollections: NOT AVAILABLE")
+    end
+end
+
+local function checkWebhookStatus()
+    console.addLine("[Webhook Status Check]")
+    if love and love.filesystem then
+        local exists, _ = love.filesystem.getInfo("last_error.json")
+        if exists then
+            console.addLine("last_error.json: EXISTS (pending send)")
+        else
+            console.addLine("last_error.json: NOT FOUND (clean)")
+        end
+    else
+        console.addLine("love.filesystem: NOT AVAILABLE")
+    end
+end
+
 console.debugCommands = {}
 local commandSpecs = {
     help = {desc = "ヘルプを表示", handler = function() console.showHelp() end},
     debug_printerror = {desc = "エラー表示を切り替え", handler = function() toggleFlag("debug_printerror") end},
     gamejoltuser_data = {desc = "GameJoltユーザーデータを表示", handler = function() showGameJoltUserData() end},
-    watchuser = {desc = "ユーザー制限がある楽曲を表示", handler = function(args) showWatchwuserInfo(args) end}
+    watchuser = {desc = "ユーザー制限がある楽曲を表示", handler = function(args) showWatchwuserInfo(args) end},
+    music_list = {desc = "読み込まれた楽曲一覧を表示", handler = function() showLoadedMusicList() end},
+    music_dump = {desc = "読み込まれた楽曲一覧をファイル出力", handler = function() writeLoadedMusicListToFile() end},
+    startup_cache_check = {desc = "Startup キャッシュ状態をチェック", handler = function() checkStartupCache() end},
+    openingloader_status = {desc = "Openingloader キャッシュ詳細を表示", handler = function() checkOpeningloaderStatus() end},
+    webhook_check = {desc = "Webhook ステータスをチェック", handler = function() checkWebhookStatus() end}
 }
 
 local availableCommands = {}
@@ -537,10 +746,25 @@ function console.toggle()
         love.keyboard.setTextInput(console.active)
     end
     if console.active then
+        console.scrollOffset = 0
         --英語=Console opened. type help for commands.
         console.addLine("コンソール version 1.0.0  [help]コマンドでヘルプを表示")
     else
         console.clear()
+        console.scrollOffset = 0
+    end
+end
+
+function console.wheelmoved(x, y)
+    if not console.active then
+        return
+    end
+
+    local maxOffset = math.max(0, #console.lines - (console.maxLines or 28))
+    if y > 0 then
+        console.scrollOffset = math.min(maxOffset, (console.scrollOffset or 0) + 1)
+    elseif y < 0 then
+        console.scrollOffset = math.max(0, (console.scrollOffset or 0) - 1)
     end
 end
 
@@ -560,6 +784,17 @@ function console.keypressed(key, scancode, isrepeat)
         if #matches > 0 then
             console.input = matches[1].name .. " "
         end
+        return
+    end
+    if key == "up" or key == "pageup" then
+        local maxOffset = math.max(0, #console.lines - (console.maxLines or 28))
+        console.scrollOffset = math.max(0, (console.scrollOffset or 0) - 1)
+        console.scrollOffset = math.min(console.scrollOffset, maxOffset)
+        return
+    end
+    if key == "down" or key == "pagedown" then
+        local maxOffset = math.max(0, #console.lines - (console.maxLines or 28))
+        console.scrollOffset = math.min(maxOffset, (console.scrollOffset or 0) + 1)
         return
     end
     if key == "c" and love.keyboard and love.keyboard.isDown and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
@@ -627,12 +862,23 @@ function console.draw()
 
     local y = 40
     local maxLines = math.floor((height - 120) / lineHeight)
-    local start = math.max(1, #console.lines - maxLines + 1)
-    for i = start, #console.lines do
+    local maxOffset = math.max(0, #console.lines - maxLines)
+    console.scrollOffset = math.min(console.scrollOffset or 0, maxOffset)
+    local start = math.max(1, #console.lines - maxLines + 1 + (console.scrollOffset or 0))
+    local endIndex = #console.lines
+    for i = start, endIndex do
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.print(console.lines[i], leftWidth + 16, y)
         y = y + lineHeight
     end
+
+    love.graphics.setColor(0.5, 0.5, 0.5, 0.7)
+    local scrollInfo = string.format("[%d/%d]", #console.lines, maxLines)
+    if maxOffset > 0 then
+        local scrollPercent = math.floor((console.scrollOffset / maxOffset) * 100)
+        scrollInfo = string.format("[%d/%d] (%.0f%%)", #console.lines, maxLines, scrollPercent)
+    end
+    love.graphics.print(scrollInfo, width - 200, height - 62)
 
     love.graphics.setColor(0.15, 0.15, 0.15, 0.98)
     love.graphics.rectangle("fill", 10, height - 50, width - 20, 40)

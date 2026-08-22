@@ -173,8 +173,17 @@ local main = {
 }
 
 local function prepareStartupAssets()
-    if main.startup.collections and musicselect.setStartupAssets then
-        musicselect.setStartupAssets(main.startup.collections, main.startup.previewSources or {})
+    if openingloader and openingloader.getCollections then
+        main.startup.collections = openingloader.getCollections() or main.startup.collections
+    end
+
+    if main.startup.collections then
+        if musicselect.setCollections then
+            musicselect.setCollections(main.startup.collections)
+        end
+        if musicselect.setStartupAssets then
+            musicselect.setStartupAssets(main.startup.collections, main.startup.previewSources or {})
+        end
     end
 end
 
@@ -438,6 +447,9 @@ end
 
 function love.wheelmoved(x, y)
     if console and console.active then
+        if console.wheelmoved then
+            console.wheelmoved(x, y)
+        end
         return
     end
 
@@ -542,8 +554,13 @@ function love.textinput(t)
         return
     end
 
-    if program.textinput then
+    if program and program.textinput then
         program.textinput(t)
+        return
+    end
+
+    if settings and type(settings.textinput) == "function" then
+        settings.textinput(t)
     end
 end
 
