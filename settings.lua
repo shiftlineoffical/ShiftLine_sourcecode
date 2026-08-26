@@ -103,7 +103,7 @@ local displayResolutions = {
 local localeTexts = {
     jp = {
         title = "設定",
-        categories = {"表示", "音声", "その他", "プレイ", "キー", "フィードバック"},
+        categories = {"表示", "音声", "その他", "プレイ", "キー", "要望"},
         displaySize = "解像度",
         displayMode = "表示モード",
         vsync = "垂直同期",
@@ -931,7 +931,7 @@ local function sendFeedbackToDiscord()
     local json = require("JSON")
     local payload = {
         username = "ShiftLineフィードバックおしらせくん",
-        content = "<@" .. MENTION_USER_ID .. ">\n" .."# 件名: " .. feedbackSubject .."\n# 時間\n**"..feedbackTimeText.. "**love\n# 本文:\n```\n" .. feedbackBody .. "\n```"
+        content = "<@" .. MENTION_USER_ID .. ">\n" .."# 件名: " .. feedbackSubject .."\n# 時間\n**"..feedbackTimeText.. "**\n# 本文:\n```\n" .. feedbackBody .. "\n```"
     }
     
     local jsonStr = json:encode(payload)
@@ -1431,6 +1431,5 @@ function settings.textinput(t)
 end
 
 return settings
-
 
 

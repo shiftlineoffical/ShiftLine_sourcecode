@@ -1,5 +1,28 @@
 ﻿local ffi = require "ffi"
-local discordRPClib = ffi.load("discord-rpc.dll")
+local love = love
+
+local libraryNames = {
+    Windows = {"discord-rpc.dll"},
+    ["OS X"] = {"libdiscord-rpc.dylib", "discord-rpc.dylib"},
+    Linux = {"libdiscord-rpc.so", "discord-rpc.so"}
+}
+
+local osName = love and love.system and love.system.getOS and love.system.getOS() or "Windows"
+local library = libraryNames[osName] or libraryNames.Windows
+local discordRPClib
+local loadError
+for _, libraryName in ipairs(library) do
+    local ok, loaded = pcall(ffi.load, libraryName)
+    if ok then
+        discordRPClib = loaded
+        break
+    end
+    loadError = loaded
+end
+
+if not discordRPClib then
+    error(string.format("Discord RPC library is unavailable for %s: %s", osName, tostring(loadError)))
+end
 
 ffi.cdef[[
 typedef struct DiscordRichPresence {

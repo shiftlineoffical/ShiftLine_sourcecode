@@ -2,12 +2,12 @@ import subprocess
 from pathlib import Path
 
 curl = r'C:\Windows\System32\curl.exe'
-url = 'https://script.google.com/macros/s/AKfycbyPzGLnkSJUNZHmq3HdOpgpMXZhxLYP75mO6HUSIIX_kGn2Ukcd75x7fFugf1OA/exec'
+url = 'https://script.google.com/macros/s/AKfycbxY2r67YHH3sHB90RMLli2bTb_8uZDCYX0k97YaSwwo5yHdEkByn02Ys-dzXu9YP5eymQ/exec'
 output_dir = Path(r'C:\Users\Public')
 gets = [
     [curl, '-sSL', '-I', url],
     [curl, '-sSL', url],
-    [curl, '-sSL', '--post302', '--post301', '-i', '-X', 'POST', url, '-H', 'Content-Type: application/x-www-form-urlencoded', '--data', 'song=test%20song'],
+    [curl, '-sSL', '-i', '--get', url, '--data-binary', 'song=test%20song&difficulty=4'],
 ]
 for i, cmd in enumerate(gets, start=1):
     print('RUN', i, 'CMD=', cmd)

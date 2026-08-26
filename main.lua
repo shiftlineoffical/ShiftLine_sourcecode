@@ -75,15 +75,9 @@ musicdifficulty = ""
 musiclevel = ""
 
 local discordRPC = {}
-local isWindows = false
-if love and love.system and love.system.getOS then
-    isWindows = (love.system.getOS() == "Windows")
-end
-if isWindows then
-    local okDiscord, drpc = pcall(require, "discordRPC")
-    if okDiscord and drpc then
-        discordRPC = drpc
-    end
+local okDiscord, drpc = pcall(require, "discordRPC")
+if okDiscord and drpc then
+    discordRPC = drpc
 end
 local appId = require"applicationId"
 local log = require "log"
@@ -267,7 +261,7 @@ function love.load()
     program.load()
 
     -- Discord
-    if isWindows and discordRPC and type(discordRPC.initialize) == "function" then
+    if discordRPC and type(discordRPC.initialize) == "function" then
         local ok, err = pcall(discordRPC.initialize, appId, true)
         if ok then
             discordEnabled = true
@@ -277,7 +271,7 @@ function love.load()
         end
     else
         discordEnabled = false
-        log.info("Discord disabled: non-Windows platform or missing module")
+        log.info("Discord disabled: missing module or platform library")
     end
 
 

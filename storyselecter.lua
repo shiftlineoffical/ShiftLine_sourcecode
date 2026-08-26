@@ -12,6 +12,7 @@ local i18n = require "i18n"
 local ui = require "lib.ui"
 local scratchsfs = require "scratchsfs"
 local storyplayer = require "storyplayer"
+local bluescreen = require "bluescreen"
 
 -- UI管理
 local slope = -(displayWidth / 20) / (displayHeight * 0.9)

@@ -28,7 +28,8 @@ local ui = require("lib.ui")
 local story = require "storyselecter"
 
 ---@diagnostic disable: undefined-global, need-check-nil
-local musicCountUrl = "https://script.google.com/macros/s/AKfycbxY2r67YHH3sHB90RMLli2bTb_8uZDCYX0k97YaSwwo5yHdEkByn02Ys-dzXu9YP5eymQ/exec"
+local curlUtils = require "curl_utils"
+local musicCountUrl = curlUtils.musicCountUrl
 local requestCountText = nil
 
 local function getSafeFont(font)
@@ -61,17 +62,9 @@ local function reportSongRequest(song, difficulty)
     local status = 0
     local responseBody = ""
 
-    local curl_path = "curl.exe"
-    local windir = os.getenv("WINDIR") or "C:\\Windows"
-    local system_curl = windir .. "\\System32\\curl.exe"
-    local can_open = io.open(system_curl, "rb")
-    if can_open then
-        can_open:close()
-        curl_path = system_curl
-    end
-
-    local workdir = os.getenv("TEMP") or "C:\\Windows\\Temp"
-    local body_file = workdir .. "\\musiccount_body_" .. tostring(os.time()) .. ".txt"
+    local curlPath = curlUtils.getPath()
+    local workdir = curlUtils.getTempDir()
+    local body_file = curlUtils.joinPath(workdir, "musiccount_body_" .. tostring(os.time()) .. ".txt")
     local body_handle = io.open(body_file, "wb")
     if body_handle then
         body_handle:write(requestBody)
@@ -82,7 +75,7 @@ local function reportSongRequest(song, difficulty)
         return nil
     end
 
-    local curl_cmd = 'cd /d "' .. workdir .. '" && "' .. curl_path .. '" -sSL -L --post302 --post301 -i -X POST "' .. musicCountUrl .. '" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" -H "Accept: application/json" -H "Expect:" --data-binary @"' .. body_file .. '" -w "\n--CURL_STATUS--%{http_code}" 2>&1'
+    local curl_cmd = curlUtils.quote(curlPath) .. ' --connect-timeout 10 --max-time 30 -sSL -L -i --get ' .. curlUtils.quote(musicCountUrl) .. ' --data-binary @' .. curlUtils.quote(body_file) .. ' -w "\n--CURL_EXIT--%{exitcode}\n--CURL_STATUS--%{http_code}" 2>&1'
 
     local handle = io.popen(curl_cmd)
     local curl_output = ""
@@ -128,7 +121,13 @@ local function reportSongRequest(song, difficulty)
         return true
     end
 
-    if responseBody:sub(1, 5) == "<html" then
+    if responseBody:match("function[^<]*not found") then
+        log.warn("[musiccount] endpoint error: " .. responseBody:match("function[^<]*not found"))
+        requestCountText = "Request count unavailable"
+        return nil
+    end
+
+    if responseBody:match("^%s*<html") then
         requestCountText = "Request sent"
         log.info(string.format("[musiccount] %s sent with HTML response", tostring(song)))
         return true
