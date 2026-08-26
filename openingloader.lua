@@ -35,7 +35,7 @@ local logotransparency = 0
 local lodingfont, verfont
 local logo, logox, logoy
 local endsaccess = 0
-local appversion = "0.3.5"
+local appversion = "0.4.0"
 local nowappversion, nowappdownloadurl
 local timer = 0
 local fadingIn = true
@@ -225,7 +225,7 @@ function openingloader.getCollections()
 end
 
 function openingloader.load()
-    -- lightweight immediate setup
+    love.window.setTitle("ShiftLine - ver"..appversion)
     logo = love.graphics.newImage("img/logo.png")
     logox = logo and logo:getWidth() or 0
     logoy = logo and logo:getHeight() or 0
@@ -368,7 +368,7 @@ function openingloader.draw()
     love.graphics.rectangle("line", displayx/10*8.5, displayy/10*9, 200, 20)
     love.graphics.setFont(verfont)
     love.graphics.rectangle("fill", displayx/10*8.5, displayy/10*9, endsaccess*2, 20)
-    pcall(function() love.graphics.print(i18n.t("appVersion")..appversion,10,displayy/10*9) end)
+    pcall(function() love.graphics.print(i18n.t("Version")..appversion,10,displayy/10*9) end)
 
     -- Show small status line under progress bar
     local statusText = ""

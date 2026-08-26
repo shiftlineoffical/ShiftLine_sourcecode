@@ -205,6 +205,13 @@ local function clamp(value, minValue, maxValue)
     return math_max(minValue, math_min(maxValue, value))
 end
 
+local function drawAlignedText(text, x, y, boxWidth, boxHeight, fontObj, align)
+    local f = fontObj or font
+    local width = boxWidth or f:getWidth(tostring(text))
+    local height = boxHeight or f:getHeight()
+    local textY = y + math_max(0, (height - f:getHeight()) * 0.5)
+    love.graphics.printf(tostring(text), x, textY, width, align or "left")
+end
 
 local layout = {
     leftWidth = 320,
@@ -234,6 +241,8 @@ local function refreshFonts()
     Titlefont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", titleSize)
     Subtitlefont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", subtitleSize)
     font = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", bodySize)
+    FeedbackTitlefont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", math_max(32, math_floor(displayHeight * 0.06)))
+    Feedbackfont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", math_max(20, math_floor(displayHeight * 0.03)))
 end
 
 local function getLocaleText(key)
@@ -426,15 +435,15 @@ local function drawKeyConfigScreen()
         })
 
         love.graphics.setColor(1, 1, 1, 0.95)
-        love.graphics.print(getLocaleText(fieldName), x + 12, y + 12)
+        drawAlignedText(getLocaleText(fieldName), x + 12, y, w - 24, h, font, "left")
 
         local keyValue = tostring(getSettingValue(fieldName))
         love.graphics.setColor(1, 1, 1, 0.82)
-        love.graphics.printf(keyValue ~= "" and keyValue or "?", x + 12, y + h - 54, w - 24, "center")
+        drawAlignedText(keyValue ~= "" and keyValue or "?", x + 12, y, w - 24, h, font, "center")
 
         if isWaiting then
             love.graphics.setColor(1, 0.92, 0.5, 0.9)
-            love.graphics.printf(getLocaleText("keyConfigWaiting"), x + 12, y + h - 82, w - 24, "center")
+            drawAlignedText(getLocaleText("keyConfigWaiting"), x + 12, y, w - 24, h, font, "center")
         end
     end
 
@@ -778,8 +787,6 @@ function settings.draw()
         local bh = layout.lineHeight
         local isSelected = i == selectedIndex
         local text = getLocaleText("categories")[i]
-        local textX = bx + 18
-        local textY = by + bh * 0.28
 
         if isSelected then
             love.graphics.setColor(0.22, 0.22, 0.22, 0.96)
@@ -795,7 +802,7 @@ function settings.draw()
 
         love.graphics.setColor(1, 1, 1, 0.96)
         love.graphics.setFont(Subtitlefont)
-        love.graphics.print(text, textX, textY)
+        drawAlignedText(text, bx + 18, by, bw - 18, bh, Subtitlefont, "left")
     end
 
     local statusX = layout.rightX
@@ -847,20 +854,13 @@ function settings.draw()
         love.graphics.polygon("line", fieldPoly)
 
         love.graphics.setColor(1, 1, 1, 0.94)
-        love.graphics.print(getLocaleText(field), rx + 18, ry + rh * 0.18)
+        drawAlignedText(getLocaleText(field), rx + 18, ry, rw - 170, rh, font, "left")
 
         local valueText = tostring(getSettingValue(field))
-        local maxValueW = rw * 0.3
-        local vScale = 1
-        if font:getWidth(valueText) > maxValueW then
-            vScale = maxValueW / font:getWidth(valueText)
-        end
+        local maxValueW = rw * 0.34
+        local valueX = rx + rw - maxValueW - 18
         love.graphics.setColor(1, 1, 1, 0.82)
-        love.graphics.push()
-        love.graphics.translate(rx + rw - 140, ry + rh * 0.18)
-        love.graphics.scale(vScale, vScale)
-        love.graphics.printf(valueText, -font:getWidth(valueText), 0, font:getWidth(valueText), "left")
-        love.graphics.pop()
+        drawAlignedText(valueText, valueX, ry, maxValueW, rh, font, "right")
 
         local fieldName = settingFields[selectedIndex][i]
         local canAdjust = isAdjustableField(fieldName)
@@ -966,7 +966,6 @@ local function sendFeedbackToDiscord()
         return
     end
     
-    -- Discord returns 204 No Content on success, so inspect the HTTP status.
     local cmd = string.format(
         'cd /d "%s" && "%s" -sS -o NUL -w "%%{http_code}" -X POST -H "Content-Type: application/json" --data-binary @"%s" "%s"',
         tempDir, curlPath, tempPath,
@@ -1136,13 +1135,13 @@ function settings.feedbackdraw()
     local locale = localeTexts[lang]
     
     -- Draw title
-    love.graphics.setFont(Titlefont)
+    love.graphics.setFont(FeedbackTitlefont or Titlefont)
     love.graphics.setColor(1, 1, 1)
     local titleText = locale.feedbackSubject:sub(1, 1) == "件" and "フィードバック" or "Feedback"
-    love.graphics.print(titleText, displayWidth/2 - Titlefont:getWidth(titleText)/2, layout.padding / 2)
+    love.graphics.print(titleText, displayWidth/2 - (FeedbackTitlefont or Titlefont):getWidth(titleText)/2, layout.padding / 2)
     
     -- Draw background panel
-    love.graphics.setFont(Subtitlefont)
+    love.graphics.setFont(Feedbackfont or Subtitlefont)
     local panelX = layout.padding
     local panelY = layout.padding * 3
     local panelW = displayWidth - layout.padding * 2
@@ -1155,7 +1154,7 @@ function settings.feedbackdraw()
     love.graphics.polygon("line", panelPoly)
     
     -- Input form
-    love.graphics.setFont(font)
+    love.graphics.setFont(Feedbackfont or font)
     local formX, formW, formY, subjectInputY, bodyLabelY, bodyInputY, buttonY, fieldHeight, bodyFieldHeight = getFeedbackFormLayout()
     
     -- Subject field
@@ -1222,7 +1221,7 @@ function settings.feedbackdraw()
     love.graphics.rectangle("line", formX, buttonY, formW, fieldHeight)
     
     love.graphics.setColor(1, 1, 1, 0.96)
-    love.graphics.setFont(Subtitlefont)
+    love.graphics.setFont(Feedbackfont or Subtitlefont)
     if feedbackStatus == "sending" then
         love.graphics.print(locale.feedbackSending, formX + 12, buttonY + 6)
     elseif feedbackStatus == "sent" then
@@ -1234,7 +1233,7 @@ function settings.feedbackdraw()
     end
     
     -- Help text
-    love.graphics.setFont(font)
+    love.graphics.setFont(Feedbackfont or font)
     love.graphics.setColor(1, 1, 1, 0.6)
     local helpText = lang == "jp" and "↑↓でフィールド切り替え、BackspaceとEnterで操作、ESCで戻る" or "Up/Down to switch fields, Enter/Backspace to edit, ESC to go back"
     love.graphics.print(helpText, formX, displayHeight - layout.padding - 30)
