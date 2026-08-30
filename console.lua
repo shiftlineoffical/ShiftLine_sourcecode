@@ -292,75 +292,113 @@ local function parseGameJoltValue(value)
     return decoded
 end
 
+local function printGameJoltValue(value, name, prefix, isLast, isRoot)
+    prefix = prefix or ""
+    isRoot = isRoot or false
 
--- テーブルを階層表示
-local function printGameJoltValue(value, indent, name)
-    indent = indent or 0
-
-    local prefix = string.rep("  ", indent)
-
-    if name ~= nil then
-        prefix = prefix .. tostring(name)
-    end
-
+    -- 値がテーブルの場合
     if type(value) == "table" then
 
-        if name ~= nil then
-            console.addLine(prefix)
+        local keys = {}
+
+        for k in pairs(value) do
+            table.insert(keys, k)
         end
 
-        local hasValue = false
+        table.sort(keys, function(a, b)
+            return tostring(a) < tostring(b)
+        end)
 
-        -- 配列部分
-        for i, v in ipairs(value) do
-            hasValue = true
-
-            printGameJoltValue(
-                v,
-                indent + 1,
-                "[" .. tostring(i) .. "]"
-            )
-        end
-
-        -- 通常のキー部分
-        for k, v in pairs(value) do
-            -- ipairsで既に表示した数値キーは除外
-            if type(k) ~= "number" then
-                hasValue = true
-
-                printGameJoltValue(
-                    v,
-                    indent + 1,
-                    tostring(k)
-                )
-            end
-        end
-
-        if not hasValue then
-            if name ~= nil then
+        -- 空テーブル
+        if #keys == 0 then
+            if isRoot then
                 console.addLine(
-                    prefix .. " = {}"
+                    tostring(name) .. " = {}"
                 )
             else
+                local connector =
+                    isLast and "└─ " or "├─ "
+
                 console.addLine(
-                    prefix .. "{}"
+                    prefix ..
+                    connector ..
+                    tostring(name) ..
+                    " = {}"
                 )
             end
+
+            return
+        end
+
+        -- ルート
+        if isRoot then
+
+            for i, key in ipairs(keys) do
+                local last = (i == #keys)
+
+                printGameJoltValue(
+                    value[key],
+                    tostring(key),
+                    "",
+                    last,
+                    false
+                )
+            end
+
+            return
+        end
+
+        -- 現在のテーブル名
+        local connector =
+            isLast and "└─ " or "├─ "
+
+        console.addLine(
+            prefix ..
+            connector ..
+            tostring(name)
+        )
+
+        -- 子要素用prefix
+        local childPrefix
+
+        if isLast then
+            childPrefix = prefix .. "   "
+        else
+            childPrefix = prefix .. "│  "
+        end
+
+        -- 子要素
+        for i, key in ipairs(keys) do
+            local last = (i == #keys)
+
+            printGameJoltValue(
+                value[key],
+                tostring(key),
+                childPrefix,
+                last,
+                false
+            )
         end
 
         return
     end
 
-    -- 通常の値
-    if name ~= nil then
+    -- 普通の値
+    if isRoot then
         console.addLine(
-            prefix ..
+            tostring(name) ..
             " = " ..
             tostring(value)
         )
     else
+        local connector =
+            isLast and "└─ " or "├─ "
+
         console.addLine(
             prefix ..
+            connector ..
+            tostring(name) ..
+            " = " ..
             tostring(value)
         )
     end
@@ -541,14 +579,14 @@ local function showGameJoltDataBank(args)
 
                     -- JSONなら階層表示
                     if type(value) == "table" then
-
-                        printGameJoltValue(
-                            value,
-                            4,
-                            nil
-                        )
-
-                    else
+    printGameJoltValue(
+        value,
+        "",
+        "",
+        true,
+        true
+    )
+else
 
                         console.addLine(
                             "  value = " ..
@@ -1117,6 +1155,12 @@ local commandSpecs = {
             console.showHelp()
         end
     },
+    clean = {
+    desc = "コンソールログを消去",
+    handler = function()
+        console.clear()
+    end
+    },
 
     debug_printerror = {
         desc = "エラー表示を切り替え",
@@ -1604,7 +1648,7 @@ function console.toggle()
         console.scrollOffset = 0
 
         console.addLine(
-            "コンソール version 1.0.0  [help]コマンドでヘルプを表示"
+            "コンソール version 1.1.0  [help]コマンドでヘルプを表示"
         )
     else
         console.clear()
