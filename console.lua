@@ -7,33 +7,6 @@ local ok_gamejoltuser, gamejoltuser = pcall(require, "gamejoltuser")
 local ok_openingloader, openingloader = pcall(require, "openingloader")
 local ok_musicselect, musicselect = pcall(require, "musicselect")
 
----@class GlobalEnv
----@field editorStarted boolean
----@field editorAutoplay boolean
----@field bgmSource any
----@field chartRuntime any
----@field programnumber number
----@field displayx number
----@field displayy number
----@field musictime number
----@field musictimer number
----@field finished boolean
----@field paused boolean
----@field score any
----@field songStarted boolean
----@field waitingResume boolean
----@field name string
----@field artist string
----@field level string
----@field jacketimg any
----@field program any
----@field musicload number
----@field chartLoaded boolean
----@field lanegravity number
----@field notegravity number
----@field metaDisplayShown boolean
----@field metaDisplayFinished boolean
-
 console = {
     active = false,
     input = "",
@@ -273,6 +246,171 @@ local function showGameJoltUserData()
     console.addLine("gamejoltuser.userid=" .. tostring(gamejoltuser.userid))
     console.addLine("gamejoltuser.user_token=" .. tostring(gamejoltuser.user_token))
     console.addLine("gamejoltuser.autologin=" .. tostring(gamejoltuser.autologin))
+end
+local function showGameJoltDataBank(args)
+    if not ok_gamejolt or not gamejolt then
+        console.addLine("gamejoltモジュールが利用できません")
+        return
+    end
+
+    if not gamejolt.fetchStorageKeys then
+        console.addLine("fetchStorageKeysが利用できません")
+        return
+    end
+
+    local mode = trim(args or ""):lower()
+    local isGlobal = (mode == "global")
+
+    local storageName
+
+    if isGlobal then
+        storageName = "Global Data Store"
+    else
+        storageName = "Local Data Store"
+    end
+
+    console.addLine("[" .. storageName .. "]")
+    console.addLine("キー一覧を取得しています...")
+
+    local ok, response = pcall(function()
+        return gamejolt.fetchStorageKeys(isGlobal)
+    end)
+
+    if not ok then
+        console.addLine(
+            "Data Storeキー取得エラー: " ..
+            tostring(response)
+        )
+        return
+    end
+
+    if type(response) ~= "table" then
+        console.addLine("Data Storeのレスポンスが不正です")
+        return
+    end
+
+    if response.success ~= "true" then
+        console.addLine(
+            "Data Store取得失敗: " ..
+            tostring(response.message or "unknown error")
+        )
+        return
+    end
+
+    -- GameJolt APIのレスポンスからキー一覧を探す
+    local keys
+
+    if type(response.data) == "table" then
+        if type(response.data.keys) == "table" then
+            keys = response.data.keys
+        elseif type(response.data) == "array" then
+            keys = response.data.array
+        end
+    end
+
+    -- 念のためresponse.keysにも対応
+    if not keys and type(response.keys) == "table" then
+        keys = response.keys
+    end
+
+    if type(keys) ~= "table" then
+        console.addLine("Data Storeにキーがありません")
+        console.addLine("response.data=" .. formatValue(response.data))
+        return
+    end
+
+    if #keys == 0 then
+        console.addLine("Data Storeは空です")
+        return
+    end
+
+    console.addLine(
+        "合計 " .. tostring(#keys) .. " 件"
+    )
+
+    console.addLine("--------------------------------")
+
+    for i, keyData in ipairs(keys) do
+        local key
+
+        if type(keyData) == "table" then
+            key =
+                keyData.key or
+                keyData.name or
+                keyData.id
+        else
+            key = keyData
+        end
+
+        if key ~= nil then
+            key = tostring(key)
+
+            local fetchOK, fetchResponse = pcall(function()
+                return gamejolt.fetchData(key, isGlobal)
+            end)
+
+            if fetchOK and type(fetchResponse) == "table" then
+                if fetchResponse.success == "true" then
+                    local value = fetchResponse.data
+
+                    console.addLine(
+                        string.format(
+                            "[%d/%d] %s",
+                            i,
+                            #keys,
+                            key
+                        )
+                    )
+
+                    console.addLine(
+                        "    value = " ..
+                        formatValue(value)
+                    )
+                else
+                    console.addLine(
+                        string.format(
+                            "[%d/%d] %s",
+                            i,
+                            #keys,
+                            key
+                        )
+                    )
+
+                    console.addLine(
+                        "    ERROR: " ..
+                        tostring(
+                            fetchResponse.message or
+                            "取得失敗"
+                        )
+                    )
+                end
+            else
+                console.addLine(
+                    string.format(
+                        "[%d/%d] %s",
+                        i,
+                        #keys,
+                        key
+                    )
+                )
+
+                console.addLine(
+                    "    ERROR: Data取得失敗"
+                )
+            end
+        else
+            console.addLine(
+                "[" .. tostring(i) .. "] 不明なキー形式"
+            )
+        end
+    end
+
+    console.addLine("--------------------------------")
+    console.addLine(
+        "Data Store取得完了: " ..
+        tostring(#keys) ..
+        " 件"
+    )
 end
 
 local function executeAudioCommand(cmd)
@@ -805,7 +943,12 @@ local commandSpecs = {
             showGameJoltUserData()
         end
     },
-
+    gamejolt_databank = {
+    desc = "GameJolt Data Storeの全データを表示",
+    handler = function(args)
+        showGameJoltDataBank(args)
+    end
+    },
     watchuser = {
         desc = "ユーザー制限がある楽曲を表示",
         handler = function(args)

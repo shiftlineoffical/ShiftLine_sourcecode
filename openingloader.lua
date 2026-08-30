@@ -25,7 +25,18 @@ local i18n = require "i18n"
 local audiocache = require "audiocache"
 local ui = require("lib.ui")
 local createsfb = pcall(require, "createsfb") and require("createsfb") or nil
-local gamejolt = pcall(require, "gamejolt") and require("gamejolt") or nil
+local gamejolt = nil
+
+do
+    local ok, result = pcall(require, "gamejolt")
+
+    if ok then
+        gamejolt = result
+        log.info("GameJolt module loaded")
+    else
+        log.warn("GameJolt module failed to load: " .. tostring(result))
+    end
+end
 local http = pcall(require, "socket.http") and require("socket.http") or nil
 
 local openingloader = {}

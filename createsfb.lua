@@ -260,6 +260,131 @@ local createsfb = {}
 
 local log = require("log")
 
+-- ============================================================
+-- 並列SFL読み込み
+-- ============================================================
+local sflRawDataCache = {}
+
+local sflReadThreadCode = [[
+local jobs, results = ...
+
+while true do
+    local job = jobs:demand()
+    if job == false then
+        break
+    end
+
+    local index = job[1]
+    local path = job[2]
+    local ok, dataOrErr = pcall(love.filesystem.read, path)
+
+    if ok and type(dataOrErr) == "string" then
+        results:push({
+            index = index,
+            path = path,
+            data = dataOrErr,
+            error = nil
+        })
+    else
+        results:push({
+            index = index,
+            path = path,
+            data = "",
+            error = tostring(dataOrErr)
+        })
+    end
+end
+]]
+
+local function getSflReadWorkerCount(songCount)
+    if songCount <= 1 then
+        return songCount
+    end
+
+    local cpuCount = 1
+    pcall(function()
+        if love.system and love.system.getProcessorCount then
+            cpuCount = tonumber(love.system.getProcessorCount()) or 1
+        end
+    end)
+
+    return math.max(1, math.min(songCount, math.max(1, cpuCount - 1), 8))
+end
+
+local function preloadSflFilesParallel(paths)
+    if type(paths) ~= "table" or #paths == 0 then
+        return
+    end
+
+    if not love.thread then
+        log.warn("Parallel SFL loading unavailable: love.thread is not loaded.")
+        return
+    end
+
+    local jobs = love.thread.newChannel()
+    local results = love.thread.newChannel()
+    local workerCount = getSflReadWorkerCount(#paths)
+    local threads = {}
+
+    log.info("Parallel SFL loading: " .. tostring(#paths) ..
+        " file(s), " .. tostring(workerCount) .. " worker(s)")
+
+    for workerIndex = 1, workerCount do
+        local thread = love.thread.newThread(sflReadThreadCode)
+        threads[#threads + 1] = thread
+        thread:start(jobs, results)
+    end
+
+    for i = 1, #paths do
+        jobs:push({i, paths[i]})
+    end
+
+    for _ = 1, workerCount do
+        jobs:push(false)
+    end
+
+    local completed = 0
+    while completed < #paths do
+        local result = results:demand()
+        if result and result.path then
+            completed = completed + 1
+
+            if type(result.data) == "string" and result.data ~= "" then
+                sflRawDataCache[result.path] = result.data
+            else
+                log.warn("Parallel SFL read failed [" ..
+                    tostring(result.index) .. "]: " ..
+                    tostring(result.path) .. " (" ..
+                    tostring(result.error) .. ")")
+                sflRawDataCache[result.path] = ""
+            end
+        end
+    end
+
+    for _, thread in ipairs(threads) do
+        pcall(function()
+            thread:wait()
+        end)
+    end
+
+    log.info("Parallel SFL loading completed: " ..
+        tostring(completed) .. "/" .. tostring(#paths))
+end
+
+local function getCachedSflData(path)
+    if type(path) ~= "string" or path == "" then
+        return nil
+    end
+
+    local cached = sflRawDataCache[path]
+    if type(cached) == "string" then
+        return cached
+    end
+
+    return nil
+end
+
+
 -- readFile: love.filesystem.read のフォールバックとしてファイルを直接読む
 local function readFile(path)
     local ok, data = pcall(love.filesystem.read, path)
@@ -797,6 +922,9 @@ local function buildDirectCollectionsFromSongs()
 
     log.info("createsfb.load(): direct song scan started (" .. tostring(#foldnames) .. " song(s))")
 
+    -- SFL本文を先に並列読み込み。
+    preloadSflFilesParallel(sflpath)
+
     for i = 1, #foldnames do
         local foldName = foldnames[i]
         local basePath = basePaths[i] or "lib/data/Songs"
@@ -945,7 +1073,10 @@ function loadsflfile()
 
     for i = 1,#sflpath do
 
-        local data = readFile(sflpath[i]) or ""
+        local data = getCachedSflData(sflpath[i])
+        if data == nil then
+            data = readFile(sflpath[i]) or ""
+        end
 
         sflmeta[i] = {}
         sfldiff[i] = {}
@@ -1179,7 +1310,10 @@ end
 
 -- 繝ｫ繝ｼ繝怜・縺ｧ螳牙・縺ｫ螳溯｡後〒縺阪ｋ繧医≧縺ｫ縲∬ｧ｣譫仙・逅・ｒ縲後う繝ｳ繝・ャ繧ｯ繧ｹ i縲阪↓蟇ｾ蠢懊＆縺帙∪縺・
 function loadsflfile_indexed(i)
-    local data = readFile(sflpath[i]) or ""
+    local data = getCachedSflData(sflpath[i])
+    if data == nil then
+        data = readFile(sflpath[i]) or ""
+    end
     if data == "" then return end
 
     sflmeta[i] = {}
@@ -1657,6 +1791,9 @@ function createsfbfile(opts)
         return
     end
 
+    -- SFB生成時もSFL本文の読み込みを並列化。
+    preloadSflFilesParallel(sflpath)
+
     log.info("Starting SFB file creation. Found " .. #foldnames .. " song(s). forceRebuildAll=" .. tostring(forceRebuildAll))
 
     if forceRebuildAll then
@@ -1842,6 +1979,11 @@ function createsfb.regenerateSingleSong(songIndex)
     end
     
     log.info("Processing single song [" .. songIndex .. "]: " .. foldnames[songIndex])
+
+    if sflpath and sflpath[songIndex] then
+        preloadSflFilesParallel({sflpath[songIndex]})
+    end
+
     
     -- 単一曲用に変数を初期化
     sflmeta[songIndex] = {}
