@@ -35,7 +35,7 @@ local logotransparency = 0
 local lodingfont, verfont
 local logo, logox, logoy
 local endsaccess = 0
-local appversion = "0.3.9"
+local appversion = "0.4.0"
 local nowappversion, nowappdownloadurl
 local timer = 0
 local fadingIn = true

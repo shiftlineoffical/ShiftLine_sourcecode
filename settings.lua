@@ -926,13 +926,47 @@ local function sendFeedbackToDiscord()
     feedbackStatus = "sending"
     feedbackStatusTime = os.time()
     local feedbackTimeText = os.date("%Y-%m-%d %H:%M:%S")
-        local MENTION_USER_ID = "1420740980457472000"
-    -- Build Discord webhook payload
-    local json = require("JSON")
-    local payload = {
-        username = "ShiftLineフィードバックおしらせくん",
-        content = "<@" .. MENTION_USER_ID .. ">\n" .."# 件名: " .. feedbackSubject .."\n# 時間\n**"..feedbackTimeText.. "**\n# 本文:\n```\n" .. feedbackBody .. "\n```"
-    }
+local MENTION_USER_ID = "1420740980457472000"
+
+local osName = "unknown"
+if love and love.system and love.system.getOS then
+    osName = love.system.getOS()
+end
+
+local version = "unknown"
+if love and love.getVersion then
+    local ok, major, minor, revision = pcall(love.getVersion)
+    if ok and major then
+        version = string.format(
+            "%s.%s.%s",
+            tostring(major),
+            tostring(minor),
+            tostring(revision or 0)
+        )
+    end
+end
+
+local json = require("JSON")
+
+local payload = {
+    username = "ShiftLineフィードバックおしらせくん",
+
+    allowed_mentions = {
+        parse = {"users"}
+    },
+
+    content =
+        "<@" .. MENTION_USER_ID .. ">\n" ..
+        "# フィードバック\n" ..
+        "## 件名: `" .. feedbackSubject .. "`\n" ..
+        "## OS: `" .. osName .. "`\n" ..
+        "## Version: `" .. version .. "`\n" ..
+        "## 時間: `" .. feedbackTimeText .. "`\n\n" ..
+        "# 本文:\n```text\n" ..
+        feedbackBody ..
+        "\n```"
+}
+
     
     local jsonStr = json:encode(payload)
     
@@ -940,17 +974,35 @@ local function sendFeedbackToDiscord()
 
 
 
-    local curlPath = os.getenv("CURL") or "curl.exe"
+    local osName = love.system.getOS()
+
+local curlPath
+local tempDir
+local nullDevice
+
+if osName == "Windows" then
+    curlPath = os.getenv("CURL") or "curl.exe"
+
     local windir = os.getenv("WINDIR") or "C:\\Windows"
     local systemCurl = windir .. "\\System32\\curl.exe"
+
     local curlHandle = io.open(systemCurl, "rb")
     if curlHandle then
         curlHandle:close()
         curlPath = systemCurl
     end
 
-    local tempDir = os.getenv("TEMP") or os.getenv("TMP") or "C:\\Windows\\Temp"
-    local tempPath = tempDir .. "\\shiftline_feedback_" .. tostring(os.time()) .. ".json"
+    tempDir = os.getenv("TEMP") or os.getenv("TMP") or "C:\\Windows\\Temp"
+    nullDevice = "NUL"
+else
+    -- macOS / Linux
+    curlPath = "curl"
+    tempDir = os.getenv("TMPDIR") or "/tmp"
+    nullDevice = "/dev/null"
+end
+
+local tempPath = tempDir .. "shiftline_feedback_" .. tostring(os.time()) .. ".json"
+
     local tempHandle = io.open(tempPath, "wb")
     local success = false
     if tempHandle then
@@ -966,11 +1018,28 @@ local function sendFeedbackToDiscord()
         return
     end
     
-    local cmd = string.format(
-        'cd /d "%s" && "%s" -sS -o NUL -w "%%{http_code}" -X POST -H "Content-Type: application/json" --data-binary @"%s" "%s"',
-        tempDir, curlPath, tempPath,
+    local cmd
+
+if osName == "Windows" then
+    cmd = string.format(
+        'cd /d "%s" && "%s" -sS -o %s -w "%%{http_code}" -X POST -H "Content-Type: application/json" --data-binary @"%s" "%s"',
+        tempDir,
+        curlPath,
+        nullDevice,
+        tempPath,
         FEEDBACK_WEBHOOK
     )
+else
+    cmd = string.format(
+        'cd "%s" && "%s" -sS -o %s -w "%%{http_code}" -X POST -H "Content-Type: application/json" --data-binary @"%s" "%s"',
+        tempDir,
+        curlPath,
+        nullDevice,
+        tempPath,
+        FEEDBACK_WEBHOOK
+    )
+end
+
     
     local handle = io.popen(cmd)
     if handle then
@@ -1269,7 +1338,7 @@ function settings.keypressed(key, scancode, isrepeat)
             -- Subject input
             if key == "backspace" and not isrepeat then
                 feedbackSubject = removeLastUTF8Char(feedbackSubject)
-            elseif key == "tab" or key == "down" or key == "return" then
+            elseif key == "tab" or key == "down" then
                 if isrepeat and key == "return" then return end
                 feedbackFocusedField = 2
             end
@@ -1278,9 +1347,6 @@ function settings.keypressed(key, scancode, isrepeat)
             -- Body input
             if key == "backspace" and not isrepeat then
                 feedbackBody = removeLastUTF8Char(feedbackBody)
-            elseif key == "return" then
-                if isrepeat then return end
-                feedbackFocusedField = 3
             elseif key == "tab" then
                 if isrepeat then return end
                 feedbackFocusedField = 3
@@ -1400,18 +1466,6 @@ function settings.keypressed(key, scancode, isrepeat)
         return
     end
 
-    if key == "return" or key == "kpenter" then
-        if selectedIndex == 6 then -- Feedback category
-            if feedbackFocusedField == 1 then
-                feedbackFocusedField = 2
-            elseif feedbackFocusedField == 2 then
-                sendFeedbackToDiscord()
-            end
-        else
-            settings.save()
-        end
-        return
-    end
 end
 
 function settings.textinput(t)

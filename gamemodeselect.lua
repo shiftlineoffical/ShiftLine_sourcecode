@@ -182,27 +182,20 @@ function gamemodeselect.mousepressed(x, y, button)
         return
     end
 
-    if storyPoly and pointInPolygon(x, y, storyPoly) then
-        if not (gamejolt.status and gamejolt.status.authenticated and gamejolt.status.username == "cloudoamp") then
-            log.warn("Story access denied: GameJolt login required as cloudoamp")
-            return
-        end
-        gamemodeselect.selectedmode = 2
-        fading = true
-        log.info("Go to Story mode")
-        return
-    end
+if storyPoly and pointInPolygon(x, y, storyPoly) then
+    gamemodeselect.selectedmode = 2
+    fading = true
+    log.info("Go to Story mode")
+    return
+end
 
-    if settingPoly and pointInPolygon(x, y, settingPoly) then
-        if not (gamejolt.status and gamejolt.status.authenticated and gamejolt.status.username == "cloudoamp") then
-            log.warn("Settings access denied: GameJolt login required as cloudoamp")
-            return
-        end
-        gamemodeselect.selectedmode = 3
-        fading = true
-        log.info("Go to Settings")
-        return
-    end
+if settingPoly and pointInPolygon(x, y, settingPoly) then
+    gamemodeselect.selectedmode = 3
+    fading = true
+    log.info("Go to Settings")
+    return
+end
+
 
     if titlePoly and pointInPolygon(x, y, titlePoly) then
         gamemodeselect.selectedmode = 0

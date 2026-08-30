@@ -68,19 +68,36 @@ local gamejoltusericon
 
 
 
+local log = require "log"
 
 local score
 
 musicdifficulty = ""
 musiclevel = ""
 
+local log = require "log"
+
 local discordRPC = {}
+
+log.info("Discord RPC: loading module...")
+
 local okDiscord, drpc = pcall(require, "discordRPC")
+
+log.info("Discord RPC: require result = " .. tostring(okDiscord))
+log.info("Discord RPC: module = " .. tostring(drpc))
+
 if okDiscord and drpc then
     discordRPC = drpc
+    log.info("Discord RPC: module loaded")
+    log.info("Discord RPC: initialize = " .. tostring(discordRPC.initialize))
+else
+    log.error("Discord RPC: require failed: " .. tostring(drpc))
 end
-local appId = require"applicationId"
-local log = require "log"
+
+local appId = require("applicationId")
+
+
+
 
 local function isLovebirdAllowed()
     return true
@@ -242,6 +259,11 @@ end
 
 
 function love.load()
+local icon = love.image.newImageData("img/ico.png")
+    love.window.setIcon(icon)
+
+
+
     love.audio.setVolume(0.5)
     -- Set up logging to file
     log.outfile = "ShiftLine.log"
@@ -261,7 +283,12 @@ function love.load()
     program.load()
 
     -- Discord
-    if discordRPC and type(discordRPC.initialize) == "function" then
+    log.info("Discord RPC: checking initialize")
+log.info("Discord RPC: type = " .. type(discordRPC))
+log.info("Discord RPC: initialize type = " .. type(discordRPC.initialize))
+
+if type(discordRPC.initialize) == "function" then
+
         local ok, err = pcall(discordRPC.initialize, appId, true)
         if ok then
             discordEnabled = true
