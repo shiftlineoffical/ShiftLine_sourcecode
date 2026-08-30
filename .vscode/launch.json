@@ -6,11 +6,11 @@
             "type": "lua-local",
             "request": "launch",
             "program": {
-                "command": "C:\\Program Files\\LOVE\\love.exe",
-                "args": [
-                    "${workspaceFolder}"
-                ]
+                "command": "C:\\Program Files\\LOVE\\love.exe"
             },
+            "args": [
+                "${workspaceFolder}"
+            ],
             "cwd": "${workspaceFolder}"
         }
     ]
