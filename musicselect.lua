@@ -2352,21 +2352,11 @@ local function parseMetaOnly(chartText, chunkName)
         return nil
     end
 
-    -- Try both formats: meta={...} and ["meta"]={...}
     local metaBlock = chartText:match("meta%s*=%s*(%b{})")
     if not metaBlock then
-        -- Try table key format: ["meta"]={...}
         metaBlock = chartText:match("%[\"meta\"%]%s*=%s*(%b{})")
     end
     if not metaBlock then
-        -- Attempt to parse function-style meta entries like:
-        -- meta("title",file,bpm)
-        -- artist("name")
-        -- demostart(77.9)
-        -- demoend(118.025)
-        -- watchuser("a","b")
-        -- genre("Vocal")
-        -- url("https://...")
         local function captureAll(fn)
             local list = {}
             for s in chartText:gmatch(fn.."%s*%((.-)%)") do

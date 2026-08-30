@@ -27,10 +27,7 @@ local JSON = require "JSON"
 local ui = require("lib.ui")
 local story = require "storyselecter"
 
----@diagnostic disable: undefined-global, need-check-nil
-local curlUtils = require "curl_utils"
-local musicCountUrl = curlUtils.musicCountUrl
-local requestCountText = nil
+
 
 local function getSafeFont(font)
     if font and type(font.getWidth) == "function" and type(font.getHeight) == "function" then
@@ -39,122 +36,6 @@ local function getSafeFont(font)
     return love.graphics.getFont()
 end
 
-local function urlEncode(str)
-    if type(str) ~= "string" then
-        return ""
-    end
-    return str:gsub("([^%w%-_.~])", function(c)
-        return string.format("%%%02X", string.byte(c))
-    end)
-end
-
-local function reportSongRequest(song, difficulty)
-    if type(song) ~= "string" or song == "" then
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    local safeDifficulty = ""
-    if difficulty ~= nil then
-        safeDifficulty = tostring(difficulty)
-    end
-    local requestBody = "song=" .. urlEncode(song) .. "&difficulty=" .. urlEncode(safeDifficulty)
-    local status = 0
-    local responseBody = ""
-
-    local curlPath = curlUtils.getPath()
-    local workdir = curlUtils.getTempDir()
-    local body_file = curlUtils.joinPath(workdir, "musiccount_body_" .. tostring(os.time()) .. ".txt")
-    local body_handle = io.open(body_file, "wb")
-    if body_handle then
-        body_handle:write(requestBody)
-        body_handle:close()
-    else
-        log.warn("[musiccount] failed to write temp body file")
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    local curl_cmd = curlUtils.quote(curlPath) .. ' --connect-timeout 10 --max-time 30 -sSL -L -i --get ' .. curlUtils.quote(musicCountUrl) .. ' --data-binary @' .. curlUtils.quote(body_file) .. ' -w "\n--CURL_EXIT--%{exitcode}\n--CURL_STATUS--%{http_code}" 2>&1'
-
-    local handle = io.popen(curl_cmd)
-    local curl_output = ""
-    if handle then
-        curl_output = handle:read("*a") or ""
-        handle:close()
-    end
-    pcall(os.remove, body_file)
-
-    status = 200
-    if curl_output and curl_output ~= "" then
-        local status_marker = curl_output:match("%-%-CURL_STATUS%-%-(%d+)")
-        if status_marker then
-            status = tonumber(status_marker) or 0
-        else
-            local last_status = nil
-            for code in curl_output:gmatch("HTTP/[%d%.]+%s+(%d+)") do
-                last_status = tonumber(code)
-            end
-            if last_status then
-                status = last_status
-            end
-        end
-
-        local body = curl_output:match(".*\r\n\r\n(.*)%-%-CURL_STATUS%-%-%d+") or curl_output:match(".*\n\n(.*)%-%-CURL_STATUS%-%-%d+") or curl_output:match(".*\r\n\r\n(.*)") or curl_output:match(".*\n\n(.*)")
-        if body then
-            responseBody = body
-        else
-            responseBody = curl_output
-        end
-    else
-        status = 500
-    end
-
-    if not responseBody or responseBody == "" then
-        if status ~= 200 then
-            log.warn(string.format("[musiccount] request failed (status=%s) body=%s", tostring(status), tostring(responseBody)))
-            requestCountText = "Request count unavailable"
-            return nil
-        end
-        requestCountText = "Request sent"
-        log.info(string.format("[musiccount] %s sent but no response body", tostring(song)))
-        return true
-    end
-
-    if responseBody:match("function[^<]*not found") then
-        log.warn("[musiccount] endpoint error: " .. responseBody:match("function[^<]*not found"))
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    if responseBody:match("^%s*<html") then
-        requestCountText = "Request sent"
-        log.info(string.format("[musiccount] %s sent with HTML response", tostring(song)))
-        return true
-    end
-
-    local ok, decoded = pcall(JSON.decode, JSON, responseBody)
-    if not ok or type(decoded) ~= "table" then
-        requestCountText = "Request sent"
-        log.info(string.format("[musiccount] %s sent with invalid JSON response", tostring(song)))
-        return true
-    end
-
-    local countText = tostring(decoded.count or decoded.song or "?")
-    if decoded.count == nil and decoded.song then
-        countText = "logged"
-    end
-
-    requestCountText = "Request count: " .. countText
-    log.info(string.format("[musiccount] %s result=%s", song, tostring(countText)))
-
-    if decoded.success == true or tostring(decoded.status or ""):lower() == "ok" then
-        return decoded
-    end
-
-    log.info(string.format("[musiccount] %s returned warning or non-ok status: %s", tostring(song), tostring(decoded.message or decoded.status or "unknown")))
-    return true
-end
 
 -- 難易度表示のフォーマット関数
 local function formatDifficultyLevel(levelValue)
@@ -2960,8 +2841,16 @@ function musicdatadraw()
         love.graphics.print(countText, displayx / 2 - safeArtistFont:getWidth(countText) / 2, displayy / 2 + displayy / 4)
     end
     love.graphics.setFont(safeTitleFont)
-    love.graphics.setColor(levelcolor[1], levelcolor[2], levelcolor[3], drawAlpha)
-    love.graphics.print(displayLevel, displayx / 2 - safeTitleFont:getWidth(displayLevel) / 2, displayy / 2 + displayy / 5 * 1.5)
+    love.graphics.setFont(safeTitleFont)
+love.graphics.setColor(levelcolor[1], levelcolor[2], levelcolor[3], drawAlpha)
+
+local levelWidth = safeTitleFont:getWidth(displayLevel)
+local levelHeight = safeTitleFont:getHeight()
+
+local levelX = displayx / 2 - levelWidth / 2
+local levelY = displayy * 0.78 - levelHeight / 2
+
+love.graphics.print(displayLevel, levelX, levelY)
 end
 
 
@@ -3018,7 +2907,6 @@ function play.load()
         songTitle = getSelectedSongDisplayData().title or ""
     end
     local requestDifficulty = musicdifficulty or musiclevel or chartRuntime.difficulty or ""
-    reportSongRequest(songTitle, requestDifficulty)
     log.info(tostring(musicname), tostring(requestDifficulty) .. "をプレイ")
 
     local selectedIndex = tonumber(selectindex) or 1

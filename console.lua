@@ -294,17 +294,15 @@ end
 
 local function printGameJoltValue(value, name, prefix, isLast, isRoot)
     prefix = prefix or ""
-    isRoot = isRoot or false
 
-    -- 値がテーブルの場合
     if type(value) == "table" then
-
         local keys = {}
 
         for k in pairs(value) do
             table.insert(keys, k)
         end
 
+        -- キーを文字順に並べる
         table.sort(keys, function(a, b)
             return tostring(a) < tostring(b)
         end)
@@ -316,8 +314,13 @@ local function printGameJoltValue(value, name, prefix, isLast, isRoot)
                     tostring(name) .. " = {}"
                 )
             else
-                local connector =
-                    isLast and "└─ " or "├─ "
+                local connector
+
+                if isLast then
+                    connector = "└─ "
+                else
+                    connector = "├─ "
+                end
 
                 console.addLine(
                     prefix ..
@@ -330,9 +333,7 @@ local function printGameJoltValue(value, name, prefix, isLast, isRoot)
             return
         end
 
-        -- ルート
         if isRoot then
-
             for i, key in ipairs(keys) do
                 local last = (i == #keys)
 
@@ -348,9 +349,13 @@ local function printGameJoltValue(value, name, prefix, isLast, isRoot)
             return
         end
 
-        -- 現在のテーブル名
-        local connector =
-            isLast and "└─ " or "├─ "
+        local connector
+
+        if isLast then
+            connector = "└─ "
+        else
+            connector = "├─ "
+        end
 
         console.addLine(
             prefix ..
@@ -358,7 +363,6 @@ local function printGameJoltValue(value, name, prefix, isLast, isRoot)
             tostring(name)
         )
 
-        -- 子要素用prefix
         local childPrefix
 
         if isLast then
@@ -367,7 +371,6 @@ local function printGameJoltValue(value, name, prefix, isLast, isRoot)
             childPrefix = prefix .. "│  "
         end
 
-        -- 子要素
         for i, key in ipairs(keys) do
             local last = (i == #keys)
 
@@ -383,25 +386,21 @@ local function printGameJoltValue(value, name, prefix, isLast, isRoot)
         return
     end
 
-    -- 普通の値
-    if isRoot then
-        console.addLine(
-            tostring(name) ..
-            " = " ..
-            tostring(value)
-        )
-    else
-        local connector =
-            isLast and "└─ " or "├─ "
+    local connector
 
-        console.addLine(
-            prefix ..
-            connector ..
-            tostring(name) ..
-            " = " ..
-            tostring(value)
-        )
+    if isLast then
+        connector = "└─ "
+    else
+        connector = "├─ "
     end
+
+    console.addLine(
+        prefix ..
+        connector ..
+        tostring(name) ..
+        " = " ..
+        tostring(value)
+    )
 end
 
 local function showGameJoltDataBank(args)
@@ -1337,17 +1336,35 @@ function console.getCurrentProgramSummary()
         currentNum
     )
 end
+local function getDisplayWidth(text)
+    text = tostring(text or "")
 
+    local width = 0
+
+    for char in text:gmatch("[^\128-\191][\128-\191]*") do
+        local byte = string.byte(char, 1)
+
+        -- ASCII
+        if byte < 128 then
+            width = width + 1
+        else
+            -- UTF-8日本語などは2文字幅として扱う
+            width = width + 2
+        end
+    end
+
+    return width
+end
 function console.showHelp()
     console.addLine("利用可能なコマンド:")
 
+    -- help表示専用のマーカー
     for _, cmd in ipairs(availableCommands) do
         console.addLine(
-            string.format(
-                "  %-24s %s",
-                cmd.name,
-                cmd.desc
-            )
+            "\t" ..
+            tostring(cmd.name) ..
+            "\t" ..
+            tostring(cmd.desc or "")
         )
     end
 end
@@ -2009,19 +2026,80 @@ local start =
         endIndex - maxLines + 1
     )
 
-    for i = start, endIndex do
-        love.graphics.setColor(
-            1,
-            1,
-            1,
-            1
-        )
+        for i = start, endIndex do
+        local line = console.lines[i]
 
-        love.graphics.print(
-            console.lines[i],
-            leftWidth + 16,
-            y
-        )
+        -- help専用表示
+        if line:sub(1, 1) == "\t" then
+            local helpText = line:sub(2)
+
+            local commandName, description =
+                helpText:match("^(.-)\t(.*)$")
+
+            if commandName and description then
+                local commandX = leftWidth + 16
+
+                -- 説明文の開始位置を固定
+                local descriptionX =
+                    leftWidth + 280
+
+                -- コマンド名
+                love.graphics.setColor(
+                    1,
+                    1,
+                    1,
+                    1
+                )
+
+                love.graphics.print(
+                    commandName,
+                    commandX,
+                    y
+                )
+
+                -- 説明
+                love.graphics.setColor(
+                    0.8,
+                    0.8,
+                    0.8,
+                    1
+                )
+
+                love.graphics.print(
+                    description,
+                    descriptionX,
+                    y
+                )
+            else
+                -- タブ形式が壊れていた場合
+                love.graphics.setColor(
+                    1,
+                    1,
+                    1,
+                    1
+                )
+
+                love.graphics.print(
+                    helpText,
+                    leftWidth + 16,
+                    y
+                )
+            end
+        else
+            -- 通常のコンソールログ
+            love.graphics.setColor(
+                1,
+                1,
+                1,
+                1
+            )
+
+            love.graphics.print(
+                line,
+                leftWidth + 16,
+                y
+            )
+        end
 
         y = y + lineHeight
     end
