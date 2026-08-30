@@ -247,19 +247,146 @@ local function showGameJoltUserData()
     console.addLine("gamejoltuser.user_token=" .. tostring(gamejoltuser.user_token))
     console.addLine("gamejoltuser.autologin=" .. tostring(gamejoltuser.autologin))
 end
+
+-- URLエンコードされた文字列を元に戻す
+local function urlDecode(str)
+    if type(str) ~= "string" then
+        return str
+    end
+
+    str = str:gsub("+", " ")
+
+    str = str:gsub(
+        "%%(%x%x)",
+        function(hex)
+            return string.char(
+                tonumber(hex, 16)
+            )
+        end
+    )
+
+    return str
+end
+
+
+-- 値を自動解析
+local function parseGameJoltValue(value)
+    if type(value) ~= "string" then
+        return value
+    end
+
+    -- URLデコード
+    local decoded = urlDecode(value)
+
+    -- JSONかどうか確認
+    if JSON then
+        local ok, parsed = pcall(function()
+            return JSON:decode(decoded)
+        end)
+
+        if ok and parsed ~= nil then
+            return parsed
+        end
+    end
+
+    return decoded
+end
+
+
+-- テーブルを階層表示
+local function printGameJoltValue(value, indent, name)
+    indent = indent or 0
+
+    local prefix = string.rep("  ", indent)
+
+    if name ~= nil then
+        prefix = prefix .. tostring(name)
+    end
+
+    if type(value) == "table" then
+
+        if name ~= nil then
+            console.addLine(prefix)
+        end
+
+        local hasValue = false
+
+        -- 配列部分
+        for i, v in ipairs(value) do
+            hasValue = true
+
+            printGameJoltValue(
+                v,
+                indent + 1,
+                "[" .. tostring(i) .. "]"
+            )
+        end
+
+        -- 通常のキー部分
+        for k, v in pairs(value) do
+            -- ipairsで既に表示した数値キーは除外
+            if type(k) ~= "number" then
+                hasValue = true
+
+                printGameJoltValue(
+                    v,
+                    indent + 1,
+                    tostring(k)
+                )
+            end
+        end
+
+        if not hasValue then
+            if name ~= nil then
+                console.addLine(
+                    prefix .. " = {}"
+                )
+            else
+                console.addLine(
+                    prefix .. "{}"
+                )
+            end
+        end
+
+        return
+    end
+
+    -- 通常の値
+    if name ~= nil then
+        console.addLine(
+            prefix ..
+            " = " ..
+            tostring(value)
+        )
+    else
+        console.addLine(
+            prefix ..
+            tostring(value)
+        )
+    end
+end
+
 local function showGameJoltDataBank(args)
     if not ok_gamejolt or not gamejolt then
-        console.addLine("gamejoltモジュールが利用できません")
+        console.addLine(
+            "gamejoltモジュールが利用できません"
+        )
         return
     end
 
     if not gamejolt.fetchStorageKeys then
-        console.addLine("fetchStorageKeysが利用できません")
+        console.addLine(
+            "fetchStorageKeysが利用できません"
+        )
         return
     end
 
     local mode = trim(args or ""):lower()
-    local isGlobal = (mode == "global")
+
+    local isGlobal = (
+        mode == "global" or
+        mode == "g"
+    )
 
     local storageName
 
@@ -269,11 +396,19 @@ local function showGameJoltDataBank(args)
         storageName = "Local Data Store"
     end
 
-    console.addLine("[" .. storageName .. "]")
-    console.addLine("キー一覧を取得しています...")
+    console.addLine(
+        "[" .. storageName .. "]"
+    )
 
+    console.addLine(
+        "キー一覧を取得しています..."
+    )
+
+    -- キー一覧取得
     local ok, response = pcall(function()
-        return gamejolt.fetchStorageKeys(isGlobal)
+        return gamejolt.fetchStorageKeys(
+            isGlobal
+        )
     end)
 
     if not ok then
@@ -281,131 +416,184 @@ local function showGameJoltDataBank(args)
             "Data Storeキー取得エラー: " ..
             tostring(response)
         )
+
         return
     end
 
     if type(response) ~= "table" then
-        console.addLine("Data Storeのレスポンスが不正です")
+        console.addLine(
+            "Data Storeのレスポンスが不正です"
+        )
+
         return
     end
 
     if response.success ~= "true" then
         console.addLine(
             "Data Store取得失敗: " ..
-            tostring(response.message or "unknown error")
+            tostring(
+                response.message or
+                "unknown error"
+            )
         )
+
         return
     end
 
-    -- GameJolt APIのレスポンスからキー一覧を探す
+    -- キー一覧を取得
     local keys
 
     if type(response.data) == "table" then
+
         if type(response.data.keys) == "table" then
             keys = response.data.keys
-        elseif type(response.data) == "array" then
-            keys = response.data.array
+
+        elseif type(response.data) == "table" then
+            -- そのまま配列の場合
+            keys = response.data
         end
     end
 
-    -- 念のためresponse.keysにも対応
+    -- 念のため別形式にも対応
     if not keys and type(response.keys) == "table" then
         keys = response.keys
     end
 
     if type(keys) ~= "table" then
-        console.addLine("Data Storeにキーがありません")
-        console.addLine("response.data=" .. formatValue(response.data))
+        console.addLine(
+            "Data Storeにキーがありません"
+        )
+
         return
     end
 
     if #keys == 0 then
-        console.addLine("Data Storeは空です")
+        console.addLine(
+            "Data Storeは空です"
+        )
+
         return
     end
 
     console.addLine(
-        "合計 " .. tostring(#keys) .. " 件"
+        "合計 " ..
+        tostring(#keys) ..
+        " 件"
     )
 
-    console.addLine("--------------------------------")
+    console.addLine(
+        "--------------------------------"
+    )
 
+    -- 全キーを順番に取得
     for i, keyData in ipairs(keys) do
+
         local key
 
         if type(keyData) == "table" then
+
             key =
                 keyData.key or
                 keyData.name or
                 keyData.id
+
         else
             key = keyData
         end
 
         if key ~= nil then
+
             key = tostring(key)
 
-            local fetchOK, fetchResponse = pcall(function()
-                return gamejolt.fetchData(key, isGlobal)
-            end)
+            console.addLine(
+                string.format(
+                    "[%d/%d] %s",
+                    i,
+                    #keys,
+                    key
+                )
+            )
 
-            if fetchOK and type(fetchResponse) == "table" then
+            -- 値取得
+            local fetchOK, fetchResponse =
+                pcall(function()
+
+                    return gamejolt.fetchData(
+                        key,
+                        isGlobal
+                    )
+
+                end)
+
+            if fetchOK and
+                type(fetchResponse) == "table" then
+
                 if fetchResponse.success == "true" then
-                    local value = fetchResponse.data
 
-                    console.addLine(
-                        string.format(
-                            "[%d/%d] %s",
-                            i,
-                            #keys,
-                            key
+                    local value =
+                        fetchResponse.data
+
+                    -- 自動デコード
+                    value =
+                        parseGameJoltValue(
+                            value
                         )
-                    )
 
-                    console.addLine(
-                        "    value = " ..
-                        formatValue(value)
-                    )
+                    -- JSONなら階層表示
+                    if type(value) == "table" then
+
+                        printGameJoltValue(
+                            value,
+                            4,
+                            nil
+                        )
+
+                    else
+
+                        console.addLine(
+                            "  value = " ..
+                            tostring(value)
+                        )
+
+                    end
+
                 else
-                    console.addLine(
-                        string.format(
-                            "[%d/%d] %s",
-                            i,
-                            #keys,
-                            key
-                        )
-                    )
 
                     console.addLine(
-                        "    ERROR: " ..
+                        "  ERROR: " ..
                         tostring(
                             fetchResponse.message or
                             "取得失敗"
                         )
                     )
+
                 end
+
             else
-                console.addLine(
-                    string.format(
-                        "[%d/%d] %s",
-                        i,
-                        #keys,
-                        key
-                    )
-                )
 
                 console.addLine(
-                    "    ERROR: Data取得失敗"
+                    "  ERROR: Data取得失敗"
                 )
+
             end
+
+            console.addLine("")
+
         else
+
             console.addLine(
-                "[" .. tostring(i) .. "] 不明なキー形式"
+                "[" ..
+                tostring(i) ..
+                "] 不明なキー形式"
             )
+
         end
     end
 
-    console.addLine("--------------------------------")
+    console.addLine(
+        "--------------------------------"
+    )
+
     console.addLine(
         "Data Store取得完了: " ..
         tostring(#keys) ..
@@ -1346,7 +1534,9 @@ function console.addLine(text)
 
     table.insert(console.lines, line)
 
-    while #console.lines > console.maxLines do
+    local maxStoredLines = 1000
+
+    while #console.lines > maxStoredLines do
         table.remove(console.lines, 1)
     end
 end
@@ -1426,24 +1616,42 @@ function console.wheelmoved(x, y)
         return
     end
 
+    local font = getConsoleFont()
+
+    local lineHeight =
+        (font and font:getHeight() or 20) + 4
+
+    local height =
+        _G.displayy or
+        love.graphics.getHeight()
+
+    local maxLines =
+        math.max(
+            1,
+            math.floor(
+                (height - 120) /
+                lineHeight
+            )
+        )
+
     local maxOffset =
         math.max(
             0,
-            #console.lines -
-            (console.maxLines or 28)
+            #console.lines - maxLines
         )
 
     if y > 0 then
         console.scrollOffset =
             math.min(
                 maxOffset,
-                (console.scrollOffset or 0) + 1
+                (console.scrollOffset or 0) + 3
             )
+
     elseif y < 0 then
         console.scrollOffset =
             math.max(
                 0,
-                (console.scrollOffset or 0) - 1
+                (console.scrollOffset or 0) - 3
             )
     end
 end
@@ -1747,16 +1955,15 @@ function console.draw()
             maxOffset
         )
 
-    local start =
-        math.max(
-            1,
-            #console.lines -
-            maxLines +
-            1 +
-            (console.scrollOffset or 0)
-        )
+    local endIndex =
+    #console.lines -
+    (console.scrollOffset or 0)
 
-    local endIndex = #console.lines
+local start =
+    math.max(
+        1,
+        endIndex - maxLines + 1
+    )
 
     for i = start, endIndex do
         love.graphics.setColor(
