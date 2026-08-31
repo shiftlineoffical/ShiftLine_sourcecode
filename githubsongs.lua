@@ -452,7 +452,9 @@ local function getWriteDirectory()
 
         return false,
             "PhysicsFS WriteDir is empty"
+
     end
+
 
     return true, result
 end
