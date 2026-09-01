@@ -7,8 +7,8 @@ scratchsfl.basePath = {}
 
 local log = require("log")
 
--- AppData側のSongsディレクトリ
-local SONGS_DIR = "Songs"
+-- ゲーム内に同梱された楽曲ディレクトリ
+local SONGS_DIR = "lib/data/Songs"
 
 local function listDir(path)
     local ok, items = pcall(love.filesystem.getDirectoryItems, path)
@@ -35,15 +35,15 @@ function scratchsfl.load()
     local sflpath = {}
     local basePath = {}
 
-    log.info("scratchsfl: scanning AppData Songs")
+    log.info("scratchsfl: scanning lib/data/Songs")
 
-    -- Songsフォルダがなければ作成
+    -- 楽曲フォルダがなければ作成
     if not isDirectory(SONGS_DIR) then
         local ok, err = pcall(love.filesystem.createDirectory, SONGS_DIR)
 
         if not ok then
             log.error(
-                "scratchsfl: failed to create Songs directory: " ..
+                "scratchsfl: failed to create lib/data/Songs directory: " ..
                 tostring(err)
             )
             return
@@ -52,7 +52,7 @@ function scratchsfl.load()
         log.info("scratchsfl: created Songs directory")
     end
 
-    -- AppData/Songs/* を検索
+    -- lib/data/Songs/* を検索
     local entries = listDir(SONGS_DIR)
 
     for _, foldName in ipairs(entries) do

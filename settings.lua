@@ -1152,12 +1152,15 @@ function settings.save()
     if success then
         print("settings.json saved!")
         if gamejolt and type(gamejolt.saveSettings) == "function" and gamejolt.status and gamejolt.status.authenticated then
-            local ok, response = pcall(gamejolt.saveSettings, gamejolt, settingsdata)
+            local ok, response = pcall(gamejolt.saveSettings, settingsdata)
             local responseTable = type(response) == "table" and response or {}
             if ok and responseTable.success == "true" then
                 log.info("GameJolt settings synced")
             else
-                log.warn("GameJolt settings sync failed: " .. tostring(responseTable.message or response or "unknown"))
+                log.warn(
+                    "GameJolt settings sync failed: "
+                    .. tostring(responseTable.message or response or "unknown")
+                )
             end
         end
     else

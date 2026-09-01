@@ -400,34 +400,34 @@ local function sendResultToGameJolt()
     }
 
     if gamejolt.status and gamejolt.status.authenticated then
-        local okScore, responseScore = pcall(function()
+        local callScoreOK, scoreSynced, responseScore = pcall(function()
             return gamejolt.submitScore(scoreData.score, scoreData.score, JSON:encode(payload), 1090059)
         end)
-        if okScore and type(responseScore) == "table" and responseScore.success == "true" then
+        if callScoreOK and scoreSynced then
             log.info("GameJolt result score synced")
         else
             log.warn("GameJolt result score sync failed: " .. tostring((type(responseScore) == "table" and responseScore.message) or responseScore or "unknown"))
-            return gamejolt.setData("result_score", scoreData.score)
-        end
-        if okScore and responseScore == true then
-            log.info("GameJolt result score synced to Data Store")
-        else
-            log.warn("GameJolt result score sync failed: " .. tostring((type(responseScore) == "table" and responseScore.message) or responseScore or "unknown"))
+            local fallbackOK, fallbackResponse = gamejolt.setData("result_score", scoreData.score)
+            if fallbackOK then
+                log.info("GameJolt result score saved to Data Store")
+            else
+                log.warn("GameJolt result score Data Store fallback failed: " .. tostring(fallbackResponse and fallbackResponse.message or fallbackResponse or "unknown"))
+            end
         end
 
-        local okRating, responseRating = pcall(function()
+        local callRatingOK, ratingSynced, responseRating = pcall(function()
             return gamejolt.setData("result_rating", overallRating)
         end)
-        if okRating and responseRating == true then
+        if callRatingOK and ratingSynced then
             log.info("GameJolt result rating synced to Data Store")
         else
             log.warn("GameJolt result rating sync failed: " .. tostring((type(responseRating) == "table" and responseRating.message) or responseRating or "unknown"))
         end
 
-        local okSummary, responseSummary = pcall(function()
+        local callSummaryOK, summarySynced, responseSummary = pcall(function()
             return gamejolt.setData("result_summary", payload)
         end)
-        if okSummary and responseSummary == true then
+        if callSummaryOK and summarySynced then
             log.info("GameJolt result summary synced to Data Store")
         else
             log.warn("GameJolt result summary sync failed: " .. tostring((type(responseSummary) == "table" and responseSummary.message) or responseSummary or "unknown"))
@@ -455,21 +455,17 @@ local function sendResultToGameJolt()
     end
 
     if type(gamejolt.savePlayerStats) == "function" then
-        local okStats, responseStats = pcall(function()
+        local callStatsOK, statsSynced, responseStats = pcall(function()
             return gamejolt.savePlayerStats(payload, "player_stats", "local_player_stats.json")
         end)
-        if okStats then
-            if type(responseStats) == "table" and responseStats.success == "true" then
+        if callStatsOK then
+            if statsSynced then
                 log.info("GameJolt player stats synced")
-            elseif type(responseStats) == "table" and responseStats.success == "local" then
-                log.info("Local player stats saved: " .. tostring(responseStats.message))
-            elseif type(responseStats) == "string" then
-                log.warn("Player stats save failed: " .. responseStats)
             else
                 log.warn("Player stats save failed: " .. tostring((type(responseStats) == "table" and responseStats.message) or responseStats or "unknown"))
             end
         else
-            log.warn("Player stats save failed: " .. tostring(responseStats or "unknown"))
+            log.warn("Player stats save failed: " .. tostring(statsSynced or "unknown"))
         end
     end
 

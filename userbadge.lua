@@ -98,6 +98,22 @@ function userbadge.draw()
         end
     end
 
+    if ratingText == ""
+        and gamejolt.memory
+    then
+        local remoteRating =
+            tonumber(gamejolt.memory.resultRating)
+
+        if remoteRating and remoteRating > 0 then
+            ratingText =
+                "  "
+                .. string.format(
+                    "%.2f",
+                    remoteRating
+                )
+        end
+    end
+
     ensureFont()
     if not badgeFont or type(badgeFont.getWidth) ~= "function" then
         return
