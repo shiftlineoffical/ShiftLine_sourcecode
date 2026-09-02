@@ -1,4 +1,5 @@
 local socket = require("socket")
+
 local okHttp, http = pcall(require, "socket.http")
 if not okHttp then
     http = nil
@@ -6,7 +7,10 @@ end
 
 local network = {}
 
+-- 設定
 network.PORT = 12345
+network.VERSION = 1
+
 network.mode = "offline"
 
 network.server = nil
@@ -22,35 +26,53 @@ network.handlers = {}
 network.ping = 0
 network.lastPingTime = 0
 network.pingInterval = 2
-network.VERSION = 1
 
+network.lastError = nil
+
+network.connectTimeout = 5
+network.handshakeTimeout = 10
+
+-- 内部
 local pendingPing = nil
+
 local externalIP = nil
 local externalIPFetchTime = 0
 local externalIPCacheDuration = 3600
 
--- HTTP library diagnostic info
+local connectionStartTime = 0
+local handshakeStartTime = 0
+
+local closing = false
+
+-- HTTP
 network.httpAvailable = okHttp and http ~= nil
 
 -- 文字
 local CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 local function randomString(length)
-    local result = ""
+    local result = {}
 
     for i = 1, length do
         local index = math.random(1, #CHARS)
-        result = result .. CHARS:sub(index, index)
+        result[i] = CHARS:sub(index, index)
     end
 
-    return result
+    return table.concat(result)
 end
 
 -- 分割
 local function split(str, separator)
     local result = {}
 
-    for value in string.gmatch(str, "([^" .. separator .. "]+)") do
+    if not str then
+        return result
+    end
+
+    for value in string.gmatch(
+        str,
+        "([^" .. separator .. "]+)"
+    ) do
         result[#result + 1] = value
     end
 
@@ -62,90 +84,150 @@ local function generatePlayerID()
     return randomString(8)
 end
 
--- IP取得
+-- エラー
+local function setError(message)
+    network.lastError = tostring(
+        message or "不明なエラー"
+    )
+
+    emit("error", network.lastError)
+end
+
+-- イベント
+function network.on(event, callback)
+    if type(event) ~= "string" then
+        return false
+    end
+
+    if type(callback) ~= "function" then
+        return false
+    end
+
+    network.handlers[event] =
+        network.handlers[event] or {}
+
+    table.insert(
+        network.handlers[event],
+        callback
+    )
+
+    return true
+end
+
+-- 発火
+local function emit(event, ...)
+    local list = network.handlers[event]
+
+    if not list then
+        return
+    end
+
+    for _, callback in ipairs(list) do
+        local ok, err = pcall(
+            callback,
+            ...
+        )
+
+        if not ok then
+            network.lastError = tostring(err)
+        end
+    end
+end
+
+-- ローカルIP
 function network.getLocalIP()
     local host = socket.dns.gethostname()
+
+    if not host then
+        return nil
+    end
+
     return socket.dns.toip(host)
 end
 
--- 外部IP取得
+-- 外部IP
 function network.getExternalIP(callback)
     if not http then
-        local errorMsg = "HTTPライブラリ (socket.http) がインストールされていません。\n" ..
-                        "LuaSocket ライブラリをインストールしてください。"
+        local errorMsg =
+            "HTTPライブラリがありません"
+
         if callback then
             callback(nil, errorMsg)
         end
+
         return nil, errorMsg
     end
 
     local now = socket.gettime()
 
-    -- キャッシュがあれば返す
-    if externalIP and (now - externalIPFetchTime) < externalIPCacheDuration then
+    if externalIP
+        and now - externalIPFetchTime
+            < externalIPCacheDuration then
+
         if callback then
             callback(externalIP)
         end
+
         return externalIP
     end
 
-    -- 複数のAPIエンドポイント
+    -- API
     local endpoints = {
-        "http://api.ipify.org?format=plain",
-        "http://icanhazip.com",
-        "http://ifconfig.me",
-        "http://ident.me"
+        "https://api.ipify.org?format=plain",
+        "https://icanhazip.com",
+        "https://ifconfig.me/ip",
+        "https://ident.me"
     }
 
-    local function tryFetchIP()
-        local lastError = ""
+    local function fetchIP()
+        local lastError =
+            "外部IP取得失敗"
 
         for _, url in ipairs(endpoints) do
-            local ok, body, statuscode, headers = pcall(function()
+
+            local ok, body = pcall(function()
                 return http.request(url)
             end)
 
-            if ok then
-                -- レスポンス取得成功
-                if body and type(body) == "string" and body ~= "" then
-                    local ip = body:match("^%s*(.-)%s*$")
+            if ok
+                and body
+                and type(body) == "string"
+                and body ~= "" then
 
-                    if ip and ip:match("^%d+%.%d+%.%d+%.%d+$") then
-                        externalIP = ip
-                        externalIPFetchTime = socket.gettime()
-                        return ip, nil
-                    else
-                        lastError = "Invalid IP format from " .. url .. ": " .. ip
-                    end
-                else
-                    lastError = "Empty response from " .. url
+                local ip =
+                    body:match("^%s*(.-)%s*$")
+
+                if ip
+                    and ip:match(
+                        "^%d+%.%d+%.%d+%.%d+$"
+                    ) then
+
+                    externalIP = ip
+                    externalIPFetchTime =
+                        socket.gettime()
+
+                    return ip
                 end
+
+                lastError = "IP形式エラー"
             else
-                -- エラー発生
-                lastError = "Request failed for " .. url .. ": " .. tostring(body)
+                lastError = "HTTP通信失敗"
             end
         end
 
-        return nil, lastError ~= "" and lastError or "全てのエンドポイントが失敗しました"
+        return nil, lastError
     end
 
-    -- 非同期フェッチ
+    local ip, err = fetchIP()
+
     if callback then
-        local function fetchAsync()
-            local ip, err = tryFetchIP()
-            callback(ip, err)
-        end
-
-        -- ここでは同期実行するが、本来はスレッドで非同期実行することを推奨
-        fetchAsync()
-        return nil
-    else
-        -- 同期フェッチ
-        return tryFetchIP()
+        callback(ip, err)
     end
+
+    return ip, err
 end
 
--- RoomID作成
+-- Room作成
 function network.createRoomID()
     local ip = network.getLocalIP()
 
@@ -156,56 +238,65 @@ function network.createRoomID()
     return ip .. ":" .. network.PORT
 end
 
--- RoomID解析
-function network.parseRoomID(roomID)
-    if type(roomID) ~= "string" then
-        return nil, nil, "RoomIDが不正です"
-    end
-
-    local ip, port = roomID:match("^([^:]+):(%d+)$")
+-- 外部Room
+function network.createExternalRoomID()
+    local ip, err =
+        network.getExternalIP()
 
     if not ip then
-        return nil, nil, "RoomIDが不正です"
+        return nil, err
+    end
+
+    return ip .. ":" .. network.PORT
+end
+
+-- Room解析
+function network.parseRoomID(roomID)
+    if type(roomID) ~= "string" then
+        return nil, nil, "RoomID不正"
+    end
+
+    local ip, port =
+        roomID:match(
+            "^([^:]+):(%d+)$"
+        )
+
+    if not ip then
+        return nil, nil, "RoomID不正"
     end
 
     port = tonumber(port)
 
-    if not port or port < 1 or port > 65535 then
-        return nil, nil, "ポートが不正です"
+    if not port
+        or port < 1
+        or port > 65535 then
+
+        return nil, nil, "ポート不正"
     end
 
     return ip, port
 end
 
--- イベント登録
-function network.on(event, callback)
-    network.handlers[event] = network.handlers[event] or {}
-    table.insert(network.handlers[event], callback)
-end
-
--- イベント発火
-local function emit(event, ...)
-    local list = network.handlers[event]
-
-    if not list then
-        return
-    end
-
-    for _, callback in ipairs(list) do
-        callback(...)
-    end
-end
-
 -- 送信
 local function rawSend(data)
     if not network.peer then
-        return false, "未接続です"
+        return false, "未接続"
     end
 
-    local ok, err = network.peer:send(data .. "\n")
+    local ok, err =
+        network.peer:send(
+            data .. "\n"
+        )
 
     if not ok then
-        emit("error", err)
+        network.lastError =
+            tostring(err)
+
+        emit(
+            "error",
+            network.lastError
+        )
+
         return false, err
     end
 
@@ -214,103 +305,234 @@ end
 
 -- パケット送信
 function network.send(typeName, ...)
+    if type(typeName) ~= "string"
+        or typeName == "" then
+
+        return false, "パケット不正"
+    end
+
     local packet = typeName
 
     for _, value in ipairs({...}) do
-        value = tostring(value):gsub("|", "")
-        packet = packet .. "|" .. value
+        value = tostring(value)
+
+        value = value
+            :gsub("|", "")
+            :gsub("[\r\n]", "")
+
+        packet =
+            packet .. "|" .. value
     end
 
     return rawSend(packet)
 end
 
+-- 接続設定
+local function setConnected(remotePlayerID)
+    network.remotePlayerID =
+        remotePlayerID
+
+    network.connected = true
+
+    connectionStartTime = 0
+    handshakeStartTime = 0
+
+    network.lastPingTime =
+        socket.gettime()
+
+    pendingPing = nil
+
+    emit(
+        "connected",
+        network.remotePlayerID
+    )
+end
+
 -- パケット処理
 local function processPacket(packet)
-    local parts = split(packet, "|")
-    local typeName = parts[1]
+    if type(packet) ~= "string"
+        or packet == "" then
+        return
+    end
+
+    local parts =
+        split(packet, "|")
+
+    local typeName =
+        parts[1]
 
     if not typeName then
         return
     end
 
+    -- HELLO
     if typeName == "HELLO" then
-        network.remotePlayerID = parts[2]
+        local remoteID = parts[2]
+        local version =
+            tonumber(parts[3])
 
-        network.send(
-            "WELCOME",
-            network.playerID,
-            network.VERSION
-        )
-
-        emit("player_join", network.remotePlayerID)
-        return
-    end
-
-    if typeName == "WELCOME" then
-        network.remotePlayerID = parts[2]
-
-        local version = tonumber(parts[3])
-
-        if version ~= network.VERSION then
-            emit("error", "バージョン不一致")
+        if not remoteID then
+            setError("HELLO不正")
+            network.close(false)
             return
         end
 
-        network.connected = true
+        if version ~= network.VERSION then
+            network.send(
+                "ERROR",
+                "VERSION_MISMATCH"
+            )
+
+            setError("バージョン不一致")
+            network.close(false)
+            return
+        end
+
+        network.remotePlayerID =
+            remoteID
+
+        local ok, err =
+            network.send(
+                "WELCOME",
+                network.playerID,
+                network.VERSION
+            )
+
+        if not ok then
+            setError(err)
+            network.close(false)
+            return
+        end
+
+        if not network.connected then
+            setConnected(remoteID)
+        end
 
         emit(
-            "connected",
-            network.remotePlayerID
+            "player_join",
+            remoteID
         )
 
         return
     end
 
-    if typeName == "PING" then
-        network.send("PONG", parts[2])
+    -- WELCOME
+    if typeName == "WELCOME" then
+        local remoteID = parts[2]
+        local version =
+            tonumber(parts[3])
+
+        if not remoteID then
+            setError("WELCOME不正")
+            network.close(false)
+            return
+        end
+
+        if version ~= network.VERSION then
+            setError("バージョン不一致")
+            network.close(false)
+            return
+        end
+
+        setConnected(remoteID)
+
         return
     end
 
+    -- PING
+    if typeName == "PING" then
+        local id = parts[2]
+
+        if id then
+            network.send(
+                "PONG",
+                id
+            )
+        end
+
+        return
+    end
+
+    -- PONG
     if typeName == "PONG" then
         local id = parts[2]
 
         if pendingPing == id then
             network.ping =
-                (socket.gettime() - network.lastPingTime) * 1000
+                (
+                    socket.gettime()
+                    - network.lastPingTime
+                ) * 1000
 
             pendingPing = nil
 
-            emit("ping", network.ping)
+            emit(
+                "ping",
+                network.ping
+            )
         end
 
         return
     end
 
-    if typeName == "DISCONNECT" then
-        emit(
-            "disconnect",
-            parts[2] or "切断"
+    -- ERROR
+    if typeName == "ERROR" then
+        local errorCode =
+            parts[2] or "UNKNOWN"
+
+        setError(
+            "相手エラー: " ..
+            errorCode
         )
 
-        network.close()
         return
     end
 
-    emit("packet", typeName, parts)
+    -- DISCONNECT
+    if typeName == "DISCONNECT" then
+        local reason =
+            parts[2] or "切断"
+
+        emit(
+            "disconnect",
+            reason
+        )
+
+        network.close(false)
+
+        return
+    end
+
+    -- 独自
+    emit(
+        "packet",
+        typeName,
+        parts
+    )
 end
 
 -- ホスト
 function network.host()
-    network.close()
+    network.close(false)
 
+    network.lastError = nil
     network.mode = "host"
-    network.playerID = generatePlayerID()
+
+    network.playerID =
+        generatePlayerID()
 
     local server, err =
-        socket.bind("*", network.PORT)
+        socket.bind(
+            "*",
+            network.PORT
+        )
 
     if not server then
-        emit("error", err)
+        setError(err)
+
+        network.mode = "offline"
+        network.playerID = nil
+
         return false
     end
 
@@ -318,9 +540,15 @@ function network.host()
 
     network.server = server
 
+    handshakeStartTime =
+        socket.gettime()
+
+    local roomID =
+        network.createRoomID()
+
     emit(
         "hosting",
-        network.createRoomID()
+        roomID
     )
 
     return true
@@ -328,29 +556,50 @@ end
 
 -- 参加
 function network.join(roomID)
-    network.close()
+    network.close(false)
 
     local ip, port, err =
         network.parseRoomID(roomID)
 
     if not ip then
-        emit("error", err)
+        setError(err)
         return false
     end
 
+    network.lastError = nil
     network.mode = "client"
-    network.playerID = generatePlayerID()
 
-    local client = socket.tcp()
+    network.playerID =
+        generatePlayerID()
 
-    client:settimeout(5)
+    local client =
+        socket.tcp()
+
+    if not client then
+        setError("TCP作成失敗")
+
+        network.mode = "offline"
+        return false
+    end
+
+    client:settimeout(
+        network.connectTimeout
+    )
 
     local ok, connectError =
-        client:connect(ip, port)
+        client:connect(
+            ip,
+            port
+        )
 
     if not ok then
         client:close()
-        emit("error", connectError)
+
+        setError(connectError)
+
+        network.mode = "offline"
+        network.playerID = nil
+
         return false
     end
 
@@ -358,22 +607,34 @@ function network.join(roomID)
 
     network.peer = client
 
-    network.send(
-        "HELLO",
-        network.playerID,
-        network.VERSION
-    )
+    connectionStartTime =
+        socket.gettime()
+
+    local sent, sendError =
+        network.send(
+            "HELLO",
+            network.playerID,
+            network.VERSION
+        )
+
+    if not sent then
+        setError(sendError)
+        network.close(false)
+        return false
+    end
 
     return true
 end
 
 -- 接続受付
 local function acceptClient()
-    if not network.server or network.peer then
+    if not network.server
+        or network.peer then
         return
     end
 
-    local client = network.server:accept()
+    local client =
+        network.server:accept()
 
     if not client then
         return
@@ -382,6 +643,11 @@ local function acceptClient()
     client:settimeout(0)
 
     network.peer = client
+
+    handshakeStartTime =
+        socket.gettime()
+
+    emit("client_connect")
 end
 
 -- 受信
@@ -390,7 +656,7 @@ local function receivePackets()
         return
     end
 
-    while true do
+    while network.peer do
         local data, err =
             network.peer:receive("*l")
 
@@ -398,8 +664,15 @@ local function receivePackets()
             processPacket(data)
 
         elseif err == "closed" then
-            emit("disconnect", "接続終了")
-            network.close()
+            emit(
+                "disconnect",
+                "接続終了"
+            )
+
+            network.close(false)
+            break
+
+        elseif err == "timeout" then
             break
 
         else
@@ -416,44 +689,111 @@ function network.update()
 
     receivePackets()
 
-    if network.connected then
-        local now = socket.gettime()
+    -- 接続待ち
+    if network.peer
+        and not network.connected then
 
-        if now - network.lastPingTime >= network.pingInterval then
-            local id = randomString(8)
+        local now =
+            socket.gettime()
+
+        if handshakeStartTime > 0
+            and now - handshakeStartTime
+                >= network.handshakeTimeout then
+
+            setError(
+                "接続タイムアウト"
+            )
+
+            emit(
+                "disconnect",
+                "接続タイムアウト"
+            )
+
+            network.close(false)
+
+            return
+        end
+    end
+
+    -- Ping
+    if network.connected then
+        local now =
+            socket.gettime()
+
+        if now - network.lastPingTime
+            >= network.pingInterval then
+
+            local id =
+                randomString(8)
 
             pendingPing = id
+
             network.lastPingTime = now
 
-            network.send("PING", id)
+            network.send(
+                "PING",
+                id
+            )
         end
     end
 end
 
 -- 切断
-function network.close()
-    if network.peer then
-        pcall(function()
-            network.peer:send("DISCONNECT|close\n")
-        end)
+function network.close(sendDisconnect)
+    if sendDisconnect == nil then
+        sendDisconnect = true
+    end
 
+    if closing then
+        return
+    end
+
+    closing = true
+
+    -- 通知
+    if sendDisconnect
+        and network.peer then
+
+        pcall(function()
+            network.peer:send(
+                "DISCONNECT|close\n"
+            )
+        end)
+    end
+
+    -- Peer
+    if network.peer then
         pcall(function()
             network.peer:close()
         end)
     end
 
+    -- Server
     if network.server then
         pcall(function()
             network.server:close()
         end)
     end
 
+    -- リセット
     network.peer = nil
     network.server = nil
+
     network.connected = false
+
     network.remotePlayerID = nil
+
     pendingPing = nil
+
+    network.ping = 0
+    network.lastPingTime = 0
+
+    connectionStartTime = 0
+    handshakeStartTime = 0
+
     network.mode = "offline"
+
+    closing = false
 end
 
 -- 接続確認
@@ -463,7 +803,9 @@ end
 
 -- Ping取得
 function network.getPing()
-    return math.floor(network.ping + 0.5)
+    return math.floor(
+        network.ping + 0.5
+    )
 end
 
 -- エラー取得
@@ -471,14 +813,19 @@ function network.getError()
     return network.lastError
 end
 
--- 自分のID
+-- 自分ID
 function network.getPlayerID()
     return network.playerID
 end
 
--- 相手のID
+-- 相手ID
 function network.getRemotePlayerID()
     return network.remotePlayerID
+end
+
+-- モード取得
+function network.getMode()
+    return network.mode
 end
 
 return network
