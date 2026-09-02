@@ -22,6 +22,7 @@ network.handlers = {}
 network.ping = 0
 network.lastPingTime = 0
 network.pingInterval = 2
+network.VERSION = 1
 
 local pendingPing = nil
 local externalIP = nil
