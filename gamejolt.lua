@@ -267,6 +267,108 @@ function gamejolt.setBigData(key, data, isGlobal)
     return gamejolt.setData(key, data, isGlobal)
 end
 
+function gamejolt.saveBestSongScore(songKey, score, metadata)
+    if not gamejolt.status.authenticated then
+        return false, "not authenticated"
+    end
+
+    local normalizedKey = tostring(songKey or "")
+    local normalizedScore = tonumber(score) or 0
+
+    if normalizedKey == "" then
+        return false, "song key is empty"
+    end
+
+    local response, fetchResponse = gamejolt.fetchData("best_song_scores")
+    local scores = {}
+
+    if type(response) == "table"
+        and response.success == "true"
+        and response.data ~= nil
+    then
+        local stored = response.data
+
+        if type(stored) == "string" then
+            local decodeOK, decoded = pcall(function()
+                return JSON:decode(stored)
+            end)
+
+            if decodeOK then
+                stored = decoded
+            end
+        end
+
+        if type(stored) == "table" then
+            scores = stored
+        end
+    elseif fetchResponse
+        and fetchResponse.message
+    then
+        log.warn(
+            "GameJolt best song scores load failed: "
+            .. tostring(fetchResponse.message)
+        )
+    end
+
+    local previous = scores[normalizedKey]
+    local previousScore = 0
+
+    if type(previous) == "table" then
+        previousScore = tonumber(previous.score) or 0
+    else
+        previousScore = tonumber(previous) or 0
+    end
+
+    if normalizedScore <= previousScore then
+        log.info(
+            "GameJolt best song score unchanged: "
+            .. normalizedKey
+            .. " best="
+            .. tostring(previousScore)
+        )
+        return true, {
+            success = "true",
+            unchanged = true,
+            score = previousScore
+        }
+    end
+
+    local entry = {
+        score = normalizedScore
+    }
+
+    if type(metadata) == "table" then
+        entry.song = metadata.song
+        entry.artist = metadata.artist
+        entry.level = metadata.level
+        entry.accuracy = metadata.accuracy
+    end
+
+    scores[normalizedKey] = entry
+
+    local saved, saveResponse = gamejolt.setData(
+        "best_song_scores",
+        scores
+    )
+
+    if not saved then
+        log.warn(
+            "GameJolt best song score save failed: "
+            .. tostring(saveResponse and saveResponse.message or saveResponse or "unknown")
+        )
+        return false, saveResponse
+    end
+
+    log.info(
+        "GameJolt best song score saved: "
+        .. normalizedKey
+        .. " score="
+        .. tostring(normalizedScore)
+    )
+
+    return true, saveResponse
+end
+
 function gamejolt.updateData(key, value, operation, isGlobal)
     local ok, response = pcall(function()
         if isGlobal then
@@ -436,6 +538,49 @@ function gamejolt.saveSettings(settingsTable, key)
 
     log.info("GameJolt settings saved: " .. dataKey)
     return true, response
+end
+
+function gamejolt.loadSettings(key)
+    if not gamejolt.status.authenticated then
+        return false, "not authenticated"
+    end
+
+    local dataKey = tostring(key or "settings")
+    local response, fetchResponse = gamejolt.fetchData(dataKey)
+
+    if type(response) ~= "table" then
+        return false,
+            fetchResponse or "settings response is invalid"
+    end
+
+    if response.success ~= "true" then
+        log.warn(
+            "GameJolt settings load failed: "
+            .. tostring(response.message or "unknown")
+        )
+        return false, response
+    end
+
+    local value = response.data
+
+    if type(value) == "string" then
+        local okDecode, decoded = pcall(function()
+            return JSON:decode(value)
+        end)
+
+        if not okDecode then
+            return false, "settings JSON decode failed"
+        end
+
+        value = decoded
+    end
+
+    if type(value) ~= "table" then
+        return false, "settings data is not an object"
+    end
+
+    log.info("GameJolt settings loaded: " .. dataKey)
+    return true, value
 end
 
 function gamejolt.savePlayerStats(statsTable, key, localFilename)

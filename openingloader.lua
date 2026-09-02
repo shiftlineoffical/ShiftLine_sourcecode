@@ -26,6 +26,7 @@ local audiocache = require "audiocache"
 local ui = require("lib.ui")
 local createsfb = pcall(require, "createsfb") and require("createsfb") or nil
 local gamejolt = nil
+local settings = require "settings"
 
 do
     local ok, result = pcall(require, "gamejolt")
@@ -226,7 +227,18 @@ local function performHeavyLoad()
 
     pcall(function() if play and type(play.preloadCommonAudio) == "function" then play.preloadCommonAudio() end end)
 
-    pcall(function() if gamejolt and type(gamejolt.load) == "function" then gamejolt.load() end end)
+    pcall(function()
+        if gamejolt and type(gamejolt.load) == "function" then
+            local authenticated = gamejolt.load()
+
+            if authenticated
+                and settings
+                and type(settings.loadFromGameJolt) == "function"
+            then
+                settings.loadFromGameJolt()
+            end
+        end
+    end)
 
     log.info("Started asynchronous createsfb and update tasks")
 end

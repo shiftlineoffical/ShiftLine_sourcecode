@@ -582,6 +582,8 @@ settingsdata={
     }
 }
 
+settings.settingsdata = settingsdata
+
 function settings.applyDisplaySettings()
     if love.window then
         local width = tonumber(settingsdata.displaysettings.displaysize[1])
@@ -639,6 +641,7 @@ function settings.load()
 
         if decoded then
             settingsdata = decoded
+            settings.settingsdata = settingsdata
         end
 
     else
@@ -652,6 +655,39 @@ function settings.load()
     updateLayout()
     refreshFonts()
 
+end
+
+function settings.loadFromGameJolt()
+    if not gamejolt
+        or not gamejolt.status
+        or not gamejolt.status.authenticated
+        or type(gamejolt.loadSettings) ~= "function"
+    then
+        return false, "GameJolt is not authenticated"
+    end
+
+    local ok, remoteSettings =
+        gamejolt.loadSettings("settings")
+
+    if not ok or type(remoteSettings) ~= "table" then
+        log.warn(
+            "GameJolt settings were not applied: "
+            .. tostring(remoteSettings or "unknown")
+        )
+        return false, remoteSettings
+    end
+
+    settingsdata = remoteSettings
+    settings.settingsdata = settingsdata
+
+    local encoded = JSON:encode(settingsdata)
+    love.filesystem.write("settings.json", encoded)
+    settings.applySettings()
+    updateLayout()
+    refreshFonts()
+
+    log.info("GameJolt settings applied locally")
+    return true
 end
 
 local function getFieldRowRect(index)

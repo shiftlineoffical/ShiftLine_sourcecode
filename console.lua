@@ -7,6 +7,7 @@ local ok_gamejolt, gamejolt = pcall(require, "gamejolt")
 local ok_gamejoltuser, gamejoltuser = pcall(require, "gamejoltuser")
 local ok_openingloader, openingloader = pcall(require, "openingloader")
 local ok_musicselect, musicselect = pcall(require, "musicselect")
+local ok_network, network = pcall(require, "network")
 
 console = {
     active = false,
@@ -1815,6 +1816,112 @@ local function showCurrentScene()
     end
 end
 
+local function showNetworkInfo()
+    if not ok_network or not network then
+        console.addLine("[ERROR] Network module not available")
+        return
+    end
+
+    console.addLine("=== Network Information ===")
+
+    local localIP = network.getLocalIP()
+    if localIP then
+        console.addLine("Local IP: " .. localIP)
+    else
+        console.addLine("Local IP: (failed to get)")
+    end
+
+    console.addLine("")
+    console.addLine("HTTP Library Status: " .. (network.httpAvailable and "✓ Available" or "✗ Not Available"))
+    
+    if not network.httpAvailable then
+        console.addLine("")
+        console.addLine("Note: External IP cannot be fetched without socket.http library")
+        console.addLine("See 'network_externalip' command for installation instructions")
+        return
+    end
+
+    console.addLine("[Fetching External IP (trying multiple endpoints)...]")
+    network.getExternalIP(function(ip, err)
+        if ip then
+            console.addLine("External IP: " .. ip)
+        else
+            console.addLine("External IP: (failed)")
+            if err then
+                console.addLine("  Error: " .. err)
+            end
+            console.addLine("Tips: ネットワーク接続またはファイアウォール設定を確認してください")
+        end
+    end)
+end
+
+local function showLocalIP()
+    if not ok_network or not network then
+        console.addLine("[ERROR] Network module not available")
+        return
+    end
+
+    console.addLine("Local Network Status:")
+    console.addLine("")
+    
+    local localIP = network.getLocalIP()
+    if localIP then
+        console.addLine("✓ Local IP: " .. localIP)
+    else
+        console.addLine("✗ Local IP: (failed to get)")
+    end
+    
+    console.addLine("HTTP Library: " .. (network.httpAvailable and "✓ Available" or "✗ Not Available"))
+end
+
+local function showExternalIP()
+    if not ok_network or not network then
+        console.addLine("[ERROR] Network module not available")
+        return
+    end
+
+    if not network.httpAvailable then
+        console.addLine("[ERROR] HTTP Library Not Available")
+        console.addLine("")
+        console.addLine("socket.http (LuaSocket) がインストールされていません")
+        console.addLine("")
+        console.addLine("解決方法:")
+        console.addLine("  1. LuaRocks をインストール: https://luarocks.org/")
+        console.addLine("  2. LuaSocket をインストール:")
+        console.addLine("     > luarocks install luasocket")
+        console.addLine("")
+        console.addLine("または")
+        console.addLine("")
+        console.addLine("  Windows: choco install luarocks")
+        console.addLine("  Lua: https://github.com/diegonehab/luasocket")
+        return
+    end
+
+    console.addLine("[Fetching External IP (trying multiple endpoints)...]")
+    console.addLine("Endpoints:")
+    console.addLine("  1. api.ipify.org")
+    console.addLine("  2. icanhazip.com")
+    console.addLine("  3. ifconfig.me")
+    console.addLine("  4. ident.me")
+    console.addLine("")
+    
+    network.getExternalIP(function(ip, err)
+        if ip then
+            console.addLine("✓ Result: " .. ip)
+        else
+            console.addLine("✗ Result: (failed)")
+            if err then
+                console.addLine("  Error: " .. err)
+            end
+            console.addLine("")
+            console.addLine("Tips:")
+            console.addLine("  - インターネット接続を確認")
+            console.addLine("  - ファイアウォールがHTTP通信をブロックしていないか確認")
+            console.addLine("  - VPN・プロキシの設定を確認")
+        end
+    end)
+end
+
 console.debugCommands = {}
 
 local commandSpecs = {
@@ -2025,6 +2132,27 @@ local commandSpecs = {
         desc = "現在のシーン情報を表示",
         handler = function()
             showCurrentScene()
+        end
+    },
+
+    network_info = {
+        desc = "ネットワーク情報を表示（ローカルIP・外部IP）",
+        handler = function()
+            showNetworkInfo()
+        end
+    },
+
+    network_localip = {
+        desc = "ローカルIPアドレスを表示",
+        handler = function()
+            showLocalIP()
+        end
+    },
+
+    network_externalip = {
+        desc = "外部IPアドレスを取得・表示",
+        handler = function()
+            showExternalIP()
         end
     }
 }

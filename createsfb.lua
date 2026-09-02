@@ -1539,6 +1539,20 @@ function createchartbin(i)
         if diffText then
             measureTimeline[diff] = buildMeasureTiming(diffText, bpm)
             actionsByDiff[diff] = parseActionEvents(diffText, measureTimeline[diff])
+        else
+            -- diffTextが存在しない場合、デフォルトのmeasureTimelineを生成
+            measureTimeline[diff] = {}
+            local defaultBpm = bpm or (sflmeta[i] and tonumber(sflmeta[i].bpm)) or 120
+            local defaultMeasureSec = 240 / defaultBpm -- 4/4の時間
+            for measureIdx = 1, 1000 do
+                measureTimeline[diff][measureIdx] = {
+                    start = (measureIdx - 1) * defaultMeasureSec,
+                    duration = defaultMeasureSec,
+                    bpm = defaultBpm,
+                    measure = {4, 4}
+                }
+            end
+            actionsByDiff[diff] = {}
         end
 
         local data = notedata[diff][i]
@@ -1551,8 +1565,14 @@ function createchartbin(i)
                 local m = measureTimeline[diff] and measureTimeline[diff][note.measure]
                 if m then
                     sec = (m.start or 0) + (note.pos or 0) * (m.duration or 0)
-                elseif measuretime[diff] and measuretime[diff][i] then
-                    sec = (note.measure-1) * measuretime[diff][i] + (note.pos or 0) * measuretime[diff][i]
+                else
+                    -- measureTimelineにmeasureIndexが存在しない場合の警告
+                    if measuretime[diff] and measuretime[diff][i] then
+                        log.warn("Using fallback measuretime for measure calculation")
+                        sec = (note.measure-1) * measuretime[diff][i] + (note.pos or 0) * measuretime[diff][i]
+                    else
+                        log.warn("Measure index " .. tostring(note.measure) .. " not found in measureTimeline for diff=" .. diff)
+                    end
                 end
 
                 laneTiming[diff][lane] = laneTiming[diff][lane] or {}

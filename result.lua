@@ -281,38 +281,34 @@ local getRank
 
 local function getSongRating(scoreData, level)
     local difficulty = parseDifficultyValue(level)
-    local accuracy = getAccuracy(scoreData) * 100
-    local base = math.max(0, difficulty)
-    local adjustedAccuracy = math.max(0, math.min(100, accuracy))
-    local ratio = ((adjustedAccuracy - 80) / 20)
-    local rating = base * (ratio * ratio)
+    local accuracy = getAccuracy(scoreData)
+    local rating = math.max(0, difficulty) * accuracy
+
     return clamp(math.floor(rating * 100 + 0.5) / 100, 0, 15)
 end
 
-local function getRating(scoreData, level)
-    local songRating = getSongRating(scoreData, level)
+local function getRatingAverage()
     local stats = settings and settings.settingsdata and settings.settingsdata.stats
+
     if type(stats) == "table" then
         local history = stats.ratingHistory
         if type(history) == "table" and #history > 0 then
             local sum = 0
             local count = 0
             for _, value in ipairs(history) do
-                if type(value) == "number" then
-                    sum = sum + value
+                local numericValue = tonumber(value)
+                if numericValue then
+                    sum = sum + numericValue
                     count = count + 1
                 end
             end
             if count > 0 then
-                return sum / count
+                return math.floor((sum / count) * 100 + 0.5) / 100
             end
         end
-
-        if type(stats.ratingAverage) == "number" and stats.ratingAverage > 0 then
-            return stats.ratingAverage
-        end
     end
-    return songRating
+
+    return 0
 end
 
 local function updateRatingStats(rating)
@@ -331,16 +327,21 @@ local function updateRatingStats(rating)
     end
 
     table.insert(stats.ratingHistory, rating)
-    while #stats.ratingHistory > 50 do
+    while #stats.ratingHistory > 30 do
         table.remove(stats.ratingHistory, 1)
     end
 
     local sum = 0
     for _, value in ipairs(stats.ratingHistory) do
-        sum = sum + value
+        local numericValue = tonumber(value)
+        if numericValue then
+            sum = sum + numericValue
+        end
     end
 
-    stats.ratingAverage = (#stats.ratingHistory > 0) and (sum / #stats.ratingHistory) or 0
+    stats.ratingAverage = (#stats.ratingHistory > 0)
+        and math.floor((sum / #stats.ratingHistory) * 100 + 0.5) / 100
+        or 0
     stats.lastRating = rating
 
     if type(stats.bestRating) ~= "number" or rating > stats.bestRating then
@@ -350,6 +351,8 @@ local function updateRatingStats(rating)
     if type(settings.save) == "function" then
         pcall(settings.save)
     end
+
+    return stats.ratingAverage
 end
 
 local function decodeGameJoltValue(value)
@@ -377,7 +380,12 @@ local function sendResultToGameJolt()
     local title, artist, level = tostring(_G.name or ""), tostring(_G.artist or ""), tostring(_G.level or "")
     local songRating = getSongRating(scoreData, level)
     local stats = settings and settings.settingsdata and settings.settingsdata.stats or {}
-    local overallRating = getRating(scoreData, level)
+    local overallRating = updateRatingStats(songRating)
+
+    if not overallRating then
+        overallRating = getRatingAverage()
+    end
+
     local ratingAvg = overallRating
 
     local payload = {
@@ -413,6 +421,38 @@ local function sendResultToGameJolt()
             else
                 log.warn("GameJolt result score Data Store fallback failed: " .. tostring(fallbackResponse and fallbackResponse.message or fallbackResponse or "unknown"))
             end
+        end
+
+        local songKey = title
+            .. "|"
+            .. artist
+            .. "|"
+            .. level
+
+        local callBestOK, bestSynced, bestResponse = pcall(function()
+            return gamejolt.saveBestSongScore(
+                songKey,
+                scoreData.score,
+                {
+                    song = title,
+                    artist = artist,
+                    level = level,
+                    accuracy = getAccuracy(scoreData)
+                }
+            )
+        end)
+
+        if callBestOK and bestSynced then
+            log.info("GameJolt best song score synced")
+        else
+            local bestError = type(bestResponse) == "table"
+                and bestResponse.message
+                or bestResponse
+
+            log.warn(
+                "GameJolt best song score sync failed: "
+                .. tostring(bestError or "unknown")
+            )
         end
 
         local callRatingOK, ratingSynced, responseRating = pcall(function()
@@ -469,7 +509,6 @@ local function sendResultToGameJolt()
         end
     end
 
-    updateRatingStats(overallRating)
 end
 
 getRank = function(scoreData)
@@ -785,7 +824,7 @@ function result.draw()
     local rank = getRank(scoreData)
     local songRating = getSongRating(scoreData, tostring(_G.level or ""))
     local stats = settings and settings.settingsdata and settings.settingsdata.stats or {}
-    local ratingAvg = getRating(scoreData, tostring(_G.level or ""))
+    local ratingAvg = getRatingAverage()
     local bestRating = stats.bestRating or 0
     local accent = getAccent(rank)
     local title, artist, level, jacket = getSongMeta()

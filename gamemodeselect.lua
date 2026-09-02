@@ -21,6 +21,60 @@ local titleButton
 local fadeAlpha = 0
 local fading = false
 local fadeSpeed = 1.5
+local backgroundVideo = nil
+
+local function updateBackgroundVideo()
+    if not backgroundVideo then
+        return
+    end
+
+    local okPlaying, playing = pcall(function()
+        return backgroundVideo:isPlaying()
+    end)
+
+    if not okPlaying then
+        return
+    end
+
+    if not playing then
+        pcall(function()
+            backgroundVideo:rewind()
+            backgroundVideo:play()
+        end)
+    end
+end
+
+local function drawBackgroundVideo()
+    if not backgroundVideo then
+        love.graphics.setColor(0.08, 0.08, 0.1, 1)
+        love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
+        love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    local okSize, videoW, videoH = pcall(function()
+        return backgroundVideo:getWidth(), backgroundVideo:getHeight()
+    end)
+
+    if not okSize or videoW <= 0 or videoH <= 0 then
+        love.graphics.setColor(0.08, 0.08, 0.1, 1)
+        love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
+        love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    local scale = math.max(displayWidth / videoW, displayHeight / videoH)
+    local drawW = videoW * scale
+    local drawH = videoH * scale
+    local drawX = (displayWidth - drawW) / 2
+    local drawY = (displayHeight - drawH) / 2
+
+    love.graphics.setColor(1, 1, 1, 0.5)
+    love.graphics.draw(backgroundVideo, drawX, drawY, 0, scale, scale)
+    love.graphics.setColor(0.05, 0.05, 0.06, 0.42)
+    love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
+    love.graphics.setColor(1, 1, 1, 1)
+end
 
 function pointInPolygon(x, y, poly)
     local inside = false
@@ -143,6 +197,28 @@ function gamemodeselect.load()
     fadeAlpha = 0
     fading = false
 
+    backgroundVideo = nil
+    if love.graphics.newVideoStream then
+        local okStream, stream = pcall(love.graphics.newVideoStream, "img/OP.ogv")
+        if okStream and stream then
+            local okVideo, video = pcall(love.graphics.newVideo, stream)
+            if okVideo and video then
+                backgroundVideo = video
+            end
+        end
+    elseif love.graphics.newVideo then
+        local okVideo, video = pcall(love.graphics.newVideo, "img/OP.ogv")
+        if okVideo and video then
+            backgroundVideo = video
+        end
+    end
+
+    if backgroundVideo then
+        pcall(function()
+            backgroundVideo:play()
+        end)
+    end
+
     print("Loaded Game Mode Selection screen")
 
     local baseSize = math.max(28, math.floor(displayHeight * 0.08))
@@ -159,6 +235,8 @@ function gamemodeselect.load()
 end
 
 function gamemodeselect.update(dt)
+    updateBackgroundVideo()
+
     if fading then
         fadeAlpha = fadeAlpha + fadeSpeed * dt
 
@@ -207,6 +285,7 @@ end
 
 function gamemodeselect.draw()
     updateLayout(false)
+    drawBackgroundVideo()
 
     love.graphics.setFont(originalfont)
     local mx, my = love.mouse.getPosition()
