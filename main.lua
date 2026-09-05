@@ -520,7 +520,6 @@ function love.update(dt)
         presence.partyMax = 4
         presence.instance = 1
 
-        log.debug("Discord RPC: online party", "room=" .. roomID, "size=" .. tostring(presence.partySize) .. "/4", "instance=1")
     else
         presence.partyId = nil
         presence.joinSecret = nil

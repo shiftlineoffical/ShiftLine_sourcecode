@@ -69,6 +69,13 @@ function online_connect.getPartyCount()
     return network.getPartyCount()
 end
 
+function online_connect.getPartyPlayers()
+    if network.getPartyPlayers then
+        return network.getPartyPlayers()
+    end
+    return {}
+end
+
 function online_connect.getPlayerCount()
     return network.getPartyCount()
 end

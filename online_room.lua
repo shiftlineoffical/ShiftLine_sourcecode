@@ -20,6 +20,10 @@ local replaceRoomIDOnInput = false
 
 local buttons = {}
 
+local function normalizeRoomID(value)
+	return tostring(value or ""):gsub("[^A-Za-z0-9]", ""):sub(1, 64)
+end
+
 local function updateLayout()
 	displayWidth, displayHeight = love.graphics.getDimensions()
 
@@ -128,17 +132,22 @@ local function receivePacket(typeName)
 end
 
 function online_room.joinWithRoomID(value)
-	local nextRoomID = tostring(value or "")
-	roomID = nextRoomID:match("^%s*(.-)%s*$") or ""
+	roomID = normalizeRoomID(value)
 	focused = false
+	if love.keyboard and love.keyboard.setTextInput then
+		love.keyboard.setTextInput(false)
+	end
 	joinRoom()
 end
 
 function online_room.load()
+	if love.keyboard and love.keyboard.setTextInput then
+		love.keyboard.setTextInput(false)
+	end
 	updateLayout()
 	local connectedRoomID = online_connect.getRoomID()
 	if connectedRoomID ~= "" then
-		roomID = connectedRoomID
+		roomID = normalizeRoomID(connectedRoomID)
 	end
 	setStatus("Room IDを入力して参加するか、部屋を作成してください")
 	focused = false
@@ -173,9 +182,9 @@ function online_room.update(dt)
 end
 
 local function drawButton(rect, label, active)
-	love.graphics.setColor(active and 0.22 or 0.12, active and 0.34 or 0.12, active and 0.38 or 0.14, 1)
+	love.graphics.setColor(active and 0.28 or 0.1, active and 0.28 or 0.1, active and 0.28 or 0.1, 1)
 	love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h, 4, 4)
-	love.graphics.setColor(0.55, 0.8, 0.82, 1)
+	love.graphics.setColor(0.8, 0.8, 0.8, 1)
 	love.graphics.setLineWidth(1)
 	love.graphics.rectangle("line", rect.x, rect.y, rect.w, rect.h, 4, 4)
 	love.graphics.setColor(1, 1, 1, 1)
@@ -184,24 +193,24 @@ local function drawButton(rect, label, active)
 end
 
 function online_room.draw()
-	love.graphics.setColor(0.035, 0.055, 0.07, 1)
+	love.graphics.setColor(0.03, 0.03, 0.03, 1)
 	love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
 
-	love.graphics.setColor(0.08, 0.18, 0.21, 1)
+	love.graphics.setColor(0.35, 0.35, 0.35, 1)
 	love.graphics.rectangle("fill", 0, displayHeight * 0.22, displayWidth, 2)
 
-	love.graphics.setColor(0.82, 0.95, 0.94, 1)
+	love.graphics.setColor(1, 1, 1, 1)
 	love.graphics.setFont(titleFont)
 	love.graphics.printf("オンラインルーム", 0, displayHeight * 0.13, displayWidth, "center")
 
 	local inputWidth = buttons.host.w
 	local inputX = buttons.host.x
 	local inputY = displayHeight * 0.29
-	love.graphics.setColor(0.08, 0.1, 0.12, 1)
+	love.graphics.setColor(0.1, 0.1, 0.1, 1)
 	love.graphics.rectangle("fill", inputX, inputY, inputWidth, 64, 4, 4)
-	love.graphics.setColor(focused and 0.55 or 0.32, focused and 0.8 or 0.45, 0.82, 1)
+	love.graphics.setColor(focused and 1 or 0.55, focused and 1 or 0.55, focused and 1 or 0.55, 1)
 	love.graphics.rectangle("line", inputX, inputY, inputWidth, 64, 4, 4)
-	love.graphics.setColor(0.75, 0.8, 0.8, 1)
+	love.graphics.setColor(0.75, 0.75, 0.75, 1)
 	love.graphics.setFont(smallFont)
 	love.graphics.print("Room ID", inputX + 18, inputY + 8)
 	love.graphics.setColor(1, 1, 1, 1)
@@ -224,10 +233,15 @@ function online_room.draw()
 	drawButton(buttons.back, "戻る", hoverAction == "back")
 
 	love.graphics.setFont(smallFont)
-	love.graphics.setColor(statusIsError and 1 or 0.58, statusIsError and 0.38 or 0.85, statusIsError and 0.38 or 0.78, 1)
-	love.graphics.printf(statusText, buttons.host.x, buttons.back.y + buttons.back.h + 24, buttons.host.w, "center")
-	love.graphics.setColor(0.65, 0.72, 0.73, 1)
-	love.graphics.printf(string.format("現在の参加人数: %d / 4", online_connect.getPartyCount()), buttons.host.x, displayHeight * 0.9, buttons.host.w, "center")
+	love.graphics.setColor(statusIsError and 1 or 0.85, statusIsError and 1 or 0.85, statusIsError and 1 or 0.85, 1)
+	love.graphics.printf(statusText, buttons.host.x, buttons.back.y + buttons.back.h + 16, buttons.host.w, "center")
+
+	local players = online_connect.getPartyPlayers()
+	love.graphics.setColor(0.65, 0.65, 0.65, 1)
+	love.graphics.printf(string.format("参加者 %d / 4", #players), buttons.host.x, displayHeight * 0.83, buttons.host.w, "center")
+	love.graphics.setColor(1, 1, 1, 1)
+	local playerText = #players > 0 and table.concat(players, "\n") or "参加者を待っています"
+	love.graphics.printf(playerText, buttons.host.x, displayHeight * 0.86, buttons.host.w, "center")
 	love.graphics.setColor(1, 1, 1, 1)
 end
 
@@ -249,6 +263,9 @@ function online_room.mousepressed(x, y, button)
 		end
 	elseif pointInRect(x, y, {x = buttons.host.x, y = inputY, w = buttons.host.w, h = 64}) then
 		focused = true
+		if love.keyboard and love.keyboard.setTextInput then
+			love.keyboard.setTextInput(true)
+		end
 	elseif pointInRect(x, y, buttons.host) then
 		hostRoom()
 	elseif pointInRect(x, y, buttons.join) then
@@ -262,6 +279,9 @@ function online_room.mousepressed(x, y, button)
 		end
 	else
 		focused = false
+		if love.keyboard and love.keyboard.setTextInput then
+			love.keyboard.setTextInput(false)
+		end
 	end
 end
 
@@ -285,7 +305,7 @@ function online_room.textinput(text)
 		replaceRoomIDOnInput = false
 	end
 
-	roomID = (roomID .. text):sub(1, 64)
+	roomID = normalizeRoomID(roomID .. text)
 	caretTimer = 0
 	caretVisible = true
 end
@@ -298,7 +318,7 @@ function online_room.keypressed(key)
 	elseif focused and controlDown and key == "v" then
 		if love.system and type(love.system.getClipboardText) == "function" then
 			local pastedText = love.system.getClipboardText() or ""
-			roomID = pastedText:sub(1, 64)
+			roomID = normalizeRoomID(pastedText)
 			replaceRoomIDOnInput = false
 			caretTimer = 0
 			caretVisible = true
@@ -315,6 +335,9 @@ function online_room.keypressed(key)
 			joinRoom()
 		end
 	elseif key == "escape" then
+		if love.keyboard and love.keyboard.setTextInput then
+			love.keyboard.setTextInput(false)
+		end
 		online_connect.close()
 		if type(changeProgram) == "function" then
 			changeProgram(2)

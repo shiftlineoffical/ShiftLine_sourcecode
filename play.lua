@@ -3394,7 +3394,6 @@ end
 
 function play.update(dt)
     updateLaneHoldStatesFromKeyboard()
-    updateLongHoldJudgements(musictime)
     if not bgmSource then
         return
     end

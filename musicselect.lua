@@ -1174,6 +1174,8 @@ end
 
 function musicselect.load()
 
+    musicselect.onlineMode = false
+
     urlimg=love.graphics.newImage("img/Link.png")
 
     log.info("Musicselect - musicselect.load() started")
@@ -1889,13 +1891,15 @@ function musicselect.mousepressed(x, y, button)
         end
     end
 
-    local backX = displayWidth / 20
-    local backY = displayHeight / 10 * 9
-    if x >= 0 and x <= backX and y >= backY and y <= displayHeight then
-        musicselect.selectmode = 1
-        fadeAlpha = 0
-        fading = true
-        return
+    if not musicselect.onlineMode then
+        local backX = displayWidth / 20
+        local backY = displayHeight / 10 * 9
+        if x >= 0 and x <= backX and y >= backY and y <= displayHeight then
+            musicselect.selectmode = 1
+            fadeAlpha = 0
+            fading = true
+            return
+        end
     end
 
     for _, rect in ipairs(musicselect.cardBounds) do
@@ -2677,7 +2681,9 @@ function musicselect.draw()
     love.graphics.setFont(backbutton)
     love.graphics.line(displayWidth/10,0,displayWidth/10,displayHeight)
     love.graphics.line(0,displayHeight/10*9,displayWidth/10,displayHeight/10*9)
-    love.graphics.print("⇐",0, displayHeight/10*9)
+    if not musicselect.onlineMode then
+        love.graphics.print("⇐",0, displayHeight/10*9)
+    end
     love.graphics.setFont(titlefont)
     love.graphics.rectangle("line",displayWidth/3*1.75,displayHeight/8*7,displayWidth/5*1.5,displayHeight/10)
     love.graphics.setColor(0, 0, 0, 0.5)

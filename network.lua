@@ -1,5 +1,6 @@
 local socket = require("socket")
 local log = require("log")
+local okGamejolt, gamejolt = pcall(require, "gamejolt")
 
 local function networkLog(level, ...)
     local logger = log[level] or log.debug
@@ -263,6 +264,14 @@ end
 
 -- プレイヤーIDを生成する
 local function generatePlayerID()
+    if okGamejolt
+        and gamejolt
+        and gamejolt.status
+        and gamejolt.status.authenticated
+        and tostring(gamejolt.status.username or "") ~= "" then
+        return tostring(gamejolt.status.username)
+    end
+
     return randomString(8)
 end
 
@@ -1878,6 +1887,25 @@ local function processFrame(frame)
     end
 
     if opcode == 10 then
+        local start =
+            pingTimes[payload]
+
+        if start then
+            network.ping =
+                (socket.gettime() - start) * 1000
+
+            pingTimes[payload] = nil
+
+            if pendingPing == payload then
+                pendingPing = nil
+            end
+
+            emit(
+                "ping",
+                network.ping
+            )
+        end
+
         return
     end
 end
@@ -2242,9 +2270,9 @@ function network.update()
             now
 
         local ok, err =
-            network.send(
-                "PING",
-                id
+            sendRawFrame(
+                id,
+                9
             )
 
         if not ok then
@@ -2374,6 +2402,18 @@ function network.getPartyCount()
     end
 
     return count
+end
+
+-- 参加者ID一覧を取得する
+function network.getPartyPlayers()
+    local players = {}
+
+    for playerID in pairs(network.partyPlayers) do
+        players[#players + 1] = playerID
+    end
+
+    table.sort(players)
+    return players
 end
 
 -- 現在のパーティー人数を取得する（別名）
