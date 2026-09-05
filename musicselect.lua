@@ -1,3 +1,4 @@
+﻿
 local musicselect={}
 local log = require "log"
 local audiocache = require "audiocache"
@@ -28,6 +29,7 @@ local startupCollections = nil
 local startupPreviewSources = nil
 local startupAssetsConsumed = false
 local playCollections = nil
+local playCollectionsIndex = nil
 local captureSelectionState
 local refreshAfterSfbGeneration
 
@@ -453,7 +455,6 @@ local function buildAudioSource(entry, requestedVolume)
         end)
     end
 
-    ---@param sounddata love.SoundData|nil
     ---@return love.Source|nil
     local function createSourceFromSoundData(sounddata)
         if not sounddata then
@@ -476,8 +477,11 @@ local function buildAudioSource(entry, requestedVolume)
 
     local cachedSoundData = audiocache.getPreloadedSoundData(collections, entry)
     if cachedSoundData then
-        local sourceSoundData = cachedSoundData
-        if requestedVolume > 1.0 then
+        local sourceSoundData = nil
+        if cachedSoundData ~= nil then
+            sourceSoundData = cachedSoundData
+        end
+        if requestedVolume > 1.0 and cachedSoundData and type(cachedSoundData.clone) == "function" then
             local okClone, clonedSoundData = pcall(function()
                 return cachedSoundData:clone()
             end)
@@ -497,9 +501,7 @@ local function buildAudioSource(entry, requestedVolume)
     if type(entry) == "table" and type(entry.data) == "string" then
         local okFile, fileData = pcall(love.filesystem.newFileData, entry.data, entry.name or "audio")
         if okFile and fileData then
-            local okSound, soundData = pcall(function()
-                return love.sound.newSoundData(fileData)
-            end)
+            local okSound, soundData = pcall(love.sound.newSoundData, fileData)
             if okSound and soundData then
                 return createSourceFromSoundData(soundData)
             end
@@ -632,9 +634,13 @@ local function normalizeDemoRange(source, startTime, endTime)
     return start, finish
 end
 
----@param entry table|string
+---@param entry table|string|nil
 ---@return love.Image|nil
 buildImageObject = function(entry)
+    if not entry then
+        return nil
+    end
+
     if type(entry) == "table" and entry._cachedJacketImage ~= nil then
         return entry._cachedJacketImage or nil
     end
@@ -1242,6 +1248,10 @@ local function buildSelectedCollectionsForPlay(selectedIndex)
         end
     end
 
+    if selectedChart then
+        preloadChartEntry(selectedChart)
+    end
+
     local cachedJacket = getJacketImage(selectedIndex)
     if type(selectedImage) == "table" then
         selectedImage._cachedJacketImage = cachedJacket or false
@@ -1258,29 +1268,45 @@ local function buildSelectedCollectionsForPlay(selectedIndex)
 end
 
 function musicselect.getPlayCollections()
+    local currentIndex = tonumber(musicselect.selectedIndex) or 0
+    if playCollections and playCollectionsIndex == currentIndex then
+        return playCollections
+    end
+
+    local selectedPlayCollections = buildSelectedCollectionsForPlay(currentIndex)
+    playCollections = selectedPlayCollections
+    playCollectionsIndex = currentIndex
     return playCollections
 end
 
 function musicselect.reloadCollectionsForPlay()
-    if true then
-        playCollections = nil
-        return nil
-    end
-
-    local selectedPlayCollections = buildSelectedCollectionsForPlay(musicselect.selectedIndex)
-    if not selectedPlayCollections then
+    local currentIndex = tonumber(musicselect.selectedIndex) or 0
+    local selectedPlayCollections = buildSelectedCollectionsForPlay(currentIndex)
+    playCollections = selectedPlayCollections
+    playCollectionsIndex = currentIndex
+    if not playCollections then
         log.warn("[Preparing to play] Could not secure the selected song data.")
         return nil
     end
 
+    local selectedAudioCount = type(selectedPlayCollections) == "table" and type(selectedPlayCollections.audio) == "table" and #(selectedPlayCollections.audio) or 0
+    local selectedChartCount = type(selectedPlayCollections) == "table" and type(selectedPlayCollections.charts) == "table" and #(selectedPlayCollections.charts) or 0
+    local selectedImageCount = type(selectedPlayCollections) == "table" and type(selectedPlayCollections.images) == "table" and #(selectedPlayCollections.images) or 0
+    local playAudioCount = type(playCollections) == "table" and type(playCollections.audio) == "table" and #(playCollections.audio) or 0
+    local playChartCount = type(playCollections) == "table" and type(playCollections.charts) == "table" and #(playCollections.charts) or 0
+    local playImageCount = type(playCollections) == table and type(playCollections.images) == "table" and #(playCollections.images) or 0
+
     log.info(string.format(
         "[play準備] 選択曲のみをメモリから引き渡します: audio=%d charts=%d images=%d",
-        #(selectedPlayCollections.audio or {}),
-        #(selectedPlayCollections.charts or {}),
-        #(selectedPlayCollections.images or {})
+        selectedAudioCount,
+        selectedChartCount,
+        selectedImageCount,
+        playAudioCount,
+        playChartCount,
+        playImageCount
     ))
 
-    return selectedPlayCollections
+    return playCollections
 end
 
 function musicselect.setCollections(c)
@@ -1289,6 +1315,7 @@ function musicselect.setCollections(c)
     filteredCollections = nil
     cachedChartData = nil
     playCollections = nil
+    playCollectionsIndex = nil
     if previousCollections ~= collections then
         chartMetaCache = {}
     end
@@ -1652,6 +1679,14 @@ function sfbloadercatcher()
         if startupCollections and not startupAssetsConsumed then
             collections = startupCollections
             startupAssetsConsumed = true
+        elseif createsfb and type(createsfb.load) == "function" then
+            local ok, loadedCollections = pcall(createsfb.load, createsfb, {forceRebuildAll = false})
+            if ok and type(loadedCollections) == "table" then
+                collections = loadedCollections
+            else
+                log.warn("sfbloadercatcher: direct song load failed, using empty collections.")
+                collections = {audio = {}, charts = {}, images = {}}
+            end
         else
             log.warn("sfbloadercatcher: startup collections are not ready. Using empty collections.")
             collections = {audio = {}, charts = {}, images = {}}
@@ -2317,21 +2352,11 @@ local function parseMetaOnly(chartText, chunkName)
         return nil
     end
 
-    -- Try both formats: meta={...} and ["meta"]={...}
     local metaBlock = chartText:match("meta%s*=%s*(%b{})")
     if not metaBlock then
-        -- Try table key format: ["meta"]={...}
         metaBlock = chartText:match("%[\"meta\"%]%s*=%s*(%b{})")
     end
     if not metaBlock then
-        -- Attempt to parse function-style meta entries like:
-        -- meta("title",file,bpm)
-        -- artist("name")
-        -- demostart(77.9)
-        -- demoend(118.025)
-        -- watchuser("a","b")
-        -- genre("Vocal")
-        -- url("https://...")
         local function captureAll(fn)
             local list = {}
             for s in chartText:gmatch(fn.."%s*%((.-)%)") do

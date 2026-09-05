@@ -16,6 +16,9 @@ local badgeFont = nil
 local function ensureFont()
     if not badgeFont then
         badgeFont = ui.newFont("lib/data/fonts/NotoSansJP-Light.ttf", 20)
+        if not badgeFont and love and love.graphics and love.graphics.newFont then
+            badgeFont = love.graphics.newFont(20)
+        end
     end
 end
 
@@ -78,8 +81,15 @@ function userbadge.draw()
     if type(username) ~= "string" or username == "" then return end
 
     local ratingText = ""
+    local settingsData = nil
     if settings and type(settings.settingsdata) == "table" then
-        local stats = settings.settingsdata.stats
+        settingsData = settings.settingsdata
+    elseif _G and _G.settingsdata then
+        settingsData = _G.settingsdata
+    end
+
+    if type(settingsData) == "table" then
+        local stats = settingsData.stats
         if type(stats) == "table" then
             local rating = tonumber(stats.ratingAverage) or tonumber(stats.lastRating)
             if type(rating) == "number" and rating > 0 then
@@ -88,7 +98,26 @@ function userbadge.draw()
         end
     end
 
+    if ratingText == ""
+        and gamejolt.memory
+    then
+        local remoteRating =
+            tonumber(gamejolt.memory.resultRating)
+
+        if remoteRating and remoteRating > 0 then
+            ratingText =
+                "  "
+                .. string.format(
+                    "%.2f",
+                    remoteRating
+                )
+        end
+    end
+
     ensureFont()
+    if not badgeFont or type(badgeFont.getWidth) ~= "function" then
+        return
+    end
 
     local prevFont = love.graphics.getFont()
     local r, g, b, a = love.graphics.getColor()

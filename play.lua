@@ -1,4 +1,4 @@
---[[
+﻿--[[
 linedirections = 判定ラインの向き
 1=下(初期値)
 2=左
@@ -27,9 +27,184 @@ local JSON = require "JSON"
 local ui = require("lib.ui")
 local story = require "storyselecter"
 
----@diagnostic disable: undefined-global, need-check-nil
-local musicCountUrl = "https://script.google.com/macros/s/AKfycbxY2r67YHH3sHB90RMLli2bTb_8uZDCYX0k97YaSwwo5yHdEkByn02Ys-dzXu9YP5eymQ/exec"
-local requestCountText = nil
+local sflPlayerOperations = {
+    "openSfl",
+    "openAudio",
+    "openFolder",
+    "setDifficulty",
+    "play",
+    "pause",
+    "reset",
+    "reload",
+    "toggleAuto",
+    "setOffset",
+    "updateMeasureInfo"
+}
+
+play.sflPlayerOperations = sflPlayerOperations
+play.sflPlayer = {
+    state = {
+        loadedSflText = "",
+        loadedSflFile = nil,
+        loadedAudioFile = nil,
+        loadedFolderFiles = {},
+        selectedDifficulty = "easy",
+        autoPlay = false,
+        offsetMs = 0,
+        measureInfo = "小節: 1",
+        status = "SFL未読込"
+    }
+}
+
+local function normalizeSflPlayerDifficulty(diff)
+    if type(diff) ~= "string" then
+        return "easy"
+    end
+    local key = string.lower(diff)
+    if key == "easy" or key == "normal" or key == "hard" or key == "extra" or key == "custom" then
+        return key
+    end
+    return "easy"
+end
+
+local function clampSflPlayerOffset(value)
+    local num = tonumber(value) or 0
+    return num
+end
+
+function play.sflPlayer.setStatus(text)
+    if type(text) == "string" then
+        play.sflPlayer.state.status = text
+    end
+    return play.sflPlayer.state.status
+end
+
+function play.sflPlayer.setDifficulty(diff)
+    play.sflPlayer.state.selectedDifficulty = normalizeSflPlayerDifficulty(diff)
+    return play.sflPlayer.state.selectedDifficulty
+end
+
+function play.sflPlayer.setOffset(value)
+    play.sflPlayer.state.offsetMs = clampSflPlayerOffset(value)
+    return play.sflPlayer.state.offsetMs
+end
+
+function play.sflPlayer.setMeasureInfo(value)
+    play.sflPlayer.state.measureInfo = tostring(value or "小節: 1")
+    return play.sflPlayer.state.measureInfo
+end
+
+function play.sflPlayer.toggleAuto()
+    play.sflPlayer.state.autoPlay = not play.sflPlayer.state.autoPlay
+    return play.sflPlayer.state.autoPlay
+end
+
+function play.sflPlayer.openSfl(file)
+    if file == nil then
+        return false
+    end
+    play.sflPlayer.state.loadedSflFile = file
+    if type(file) == "string" then
+        play.sflPlayer.state.loadedSflText = file
+    elseif type(file) == "table" and type(file.text) == "function" then
+        local ok, text = pcall(file.text, file)
+        if ok and type(text) == "string" then
+            play.sflPlayer.state.loadedSflText = text
+        end
+    end
+    play.sflPlayer.state.status = "SFL読込完了"
+    return true
+end
+
+function play.sflPlayer.openAudio(file)
+    if file == nil then
+        return false
+    end
+    play.sflPlayer.state.loadedAudioFile = file
+    play.sflPlayer.state.status = "音源: " .. tostring(file.name or file)
+    return true
+end
+
+function play.sflPlayer.openFolder(files)
+    if type(files) ~= "table" then
+        return false
+    end
+    play.sflPlayer.state.loadedFolderFiles = files
+    return true
+end
+
+function play.sflPlayer.play()
+    play.sflPlayer.state.status = "再生中"
+    return true
+end
+
+function play.sflPlayer.pause()
+    play.sflPlayer.state.status = "一時停止"
+    return true
+end
+
+function play.sflPlayer.reset()
+    play.sflPlayer.state.status = "リセット"
+    return true
+end
+
+function play.sflPlayer.reload()
+    play.sflPlayer.state.status = "再読み込み"
+    return true
+end
+
+function play.sflPlayer.handleOperation(action, payload)
+    local op = tostring(action or "")
+    if op == "openSfl" then
+        return play.sflPlayer.openSfl(payload)
+    elseif op == "openAudio" then
+        return play.sflPlayer.openAudio(payload)
+    elseif op == "openFolder" then
+        return play.sflPlayer.openFolder(payload)
+    elseif op == "setDifficulty" then
+        return play.sflPlayer.setDifficulty(payload)
+    elseif op == "play" then
+        return play.sflPlayer.play()
+    elseif op == "pause" then
+        return play.sflPlayer.pause()
+    elseif op == "reset" then
+        return play.sflPlayer.reset()
+    elseif op == "reload" then
+        return play.sflPlayer.reload()
+    elseif op == "toggleAuto" then
+        return play.sflPlayer.toggleAuto()
+    elseif op == "setOffset" then
+        return play.sflPlayer.setOffset(payload)
+    elseif op == "updateMeasureInfo" then
+        return play.sflPlayer.setMeasureInfo(payload)
+    end
+    return false
+end
+
+function play.handleSflPlayerQuery(rawQuery, handlers)
+    local query = tostring(rawQuery or "")
+    local params = {}
+    if query ~= "" then
+        local normalized = query:gsub("^%?", "")
+        for pair in normalized:gmatch("[^&]+") do
+            local key, value = pair:match("([^=]+)=?(.*)")
+            if key then
+                params[key] = value
+            end
+        end
+    end
+
+    local setCookie = handlers and handlers.setCookie or function() end
+    local redirect = handlers and handlers.redirect or function() end
+
+    if tostring(params.i) == "1" then
+        setCookie("__test=e38f27bdef7926559f4b9a141071e413; max-age=21600; expires=Thu, 31-Dec-37 23:55:55 GMT; path=/")
+        redirect("https://shiftline.gt.tc/sflplayer.html?i=2")
+        return true
+    end
+
+    return false
+end
 
 local function getSafeFont(font)
     if font and type(font.getWidth) == "function" and type(font.getHeight) == "function" then
@@ -38,119 +213,6 @@ local function getSafeFont(font)
     return love.graphics.getFont()
 end
 
-local function urlEncode(str)
-    if type(str) ~= "string" then
-        return ""
-    end
-    return str:gsub("([^%w%-_.~])", function(c)
-        return string.format("%%%02X", string.byte(c))
-    end)
-end
-
-local function reportSongRequest(song, difficulty)
-    if type(song) ~= "string" or song == "" then
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    local safeDifficulty = ""
-    if difficulty ~= nil then
-        safeDifficulty = tostring(difficulty)
-    end
-    local requestBody = "song=" .. urlEncode(song) .. "&difficulty=" .. urlEncode(safeDifficulty)
-    local status = 0
-    local responseBody = ""
-
-    local curl_path = "curl.exe"
-    local windir = os.getenv("WINDIR") or "C:\\Windows"
-    local system_curl = windir .. "\\System32\\curl.exe"
-    local can_open = io.open(system_curl, "rb")
-    if can_open then
-        can_open:close()
-        curl_path = system_curl
-    end
-
-    local workdir = os.getenv("TEMP") or "C:\\Windows\\Temp"
-    local body_file = workdir .. "\\musiccount_body_" .. tostring(os.time()) .. ".txt"
-    local body_handle = io.open(body_file, "wb")
-    if body_handle then
-        body_handle:write(requestBody)
-        body_handle:close()
-    else
-        log.warn("[musiccount] failed to write temp body file")
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    local curl_cmd = 'cd /d "' .. workdir .. '" && "' .. curl_path .. '" -sSL -L --post302 --post301 -i -X POST "' .. musicCountUrl .. '" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" -H "Accept: application/json" -H "Expect:" --data-binary @"' .. body_file .. '" -w "\n--CURL_STATUS--%{http_code}" 2>&1'
-
-    local handle = io.popen(curl_cmd)
-    local curl_output = ""
-    if handle then
-        curl_output = handle:read("*a") or ""
-        handle:close()
-    end
-    pcall(os.remove, body_file)
-
-    status = 200
-    if curl_output and curl_output ~= "" then
-        local status_marker = curl_output:match("%-%-CURL_STATUS%-%-(%d+)")
-        if status_marker then
-            status = tonumber(status_marker)
-        else
-            local last_status = nil
-            for code in curl_output:gmatch("HTTP/[%d%.]+%s+(%d+)") do
-                last_status = tonumber(code)
-            end
-            if last_status then
-                status = last_status
-            end
-        end
-
-        local body = curl_output:match(".*\r\n\r\n(.*)%-%-CURL_STATUS%-%-%d+") or curl_output:match(".*\n\n(.*)%-%-CURL_STATUS%-%-%d+") or curl_output:match(".*\r\n\r\n(.*)") or curl_output:match(".*\n\n(.*)")
-        if body then
-            responseBody = body
-        else
-            responseBody = curl_output
-        end
-    else
-        status = 500
-    end
-
-    if not responseBody or responseBody == "" or status ~= 200 then
-        log.warn(string.format("[musiccount] request failed (status=%s) body=%s", tostring(status), tostring(responseBody)))
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    if responseBody:sub(1, 5) == "<html" then
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    local ok, decoded = pcall(JSON.decode, JSON, responseBody)
-    if not ok or type(decoded) ~= "table" then
-        log.warn(string.format("[musiccount] invalid JSON response: %s", tostring(responseBody)))
-        requestCountText = "Request count unavailable"
-        return nil
-    end
-
-    local success = decoded.success == true or tostring(decoded.status or ""):lower() == "ok"
-    if not success then
-        log.warn(string.format("[musiccount] server returned error: %s", tostring(decoded.message or decoded.status or "unknown")))
-        requestCountText = "Request count unavailable"
-        return decoded
-    end
-
-    local countText = tostring(decoded.count or decoded.song or "?")
-    if decoded.count == nil and decoded.song then
-        countText = "logged"
-    end
-
-    requestCountText = "Request count: " .. countText
-    log.info(string.format("[musiccount] %s result=%s", song, tostring(countText)))
-    return decoded
-end
 
 -- 難易度表示のフォーマット関数
 local function formatDifficultyLevel(levelValue)
@@ -212,6 +274,7 @@ local musictimer=0
 
 local finished = false
 local resultTransitioned = false
+local resultTransitionHandler = nil
 
 local paused = false
 local resumeTimer = 0
@@ -258,6 +321,9 @@ local chartRuntime = {
     nextGravityEventIndex = 1
 }
 
+local activeLaneCount = 6
+local baseNoteSpeed = 1.0
+
 noteApproachSeconds = 1.2
 local noteFadeSeconds = 0.16
 local longNoteFadeDuration = 0.3
@@ -279,24 +345,71 @@ laneInputMap = {
     num2 = 5,
     num3 = 6
 }
-gravity4TopLaneInputMap = {
-    ["3"] = 1,
+gravity2LeftLaneInputMap = {
+    z = 1,
+    x = 2,
+    c = 3,
+    kp1 = 4,
+    kp2 = 5,
+    kp3 = 6,
+    num1 = 4,
+    num2 = 5,
+    num3 = 6,
+    ["1"] = 1,
     ["2"] = 2,
-    ["1"] = 3,
-    kp3 = 1,
-    kp2 = 2,
-    kp1 = 3,
-    num3 = 1,
-    num2 = 2,
-    num1 = 3,
-    c = 4,
-    x = 5,
-    z = 6
+    ["3"] = 3,
+    ["4"] = 4,
+    ["5"] = 5,
+    ["6"] = 6
 }
+gravity4TopLaneInputMap = {
+    z = 6,
+    x = 5,
+    c = 4,
+    kp1 = 4,
+    kp2 = 5,
+    kp3 = 6,
+    num1 = 3,
+    num2 = 2,
+    num3 = 1,
+    ["1"] = 6,
+    ["2"] = 5,
+    ["3"] = 4,
+    ["4"] = 3,
+    ["5"] = 2,
+    ["6"] = 1
+}
+
+local function getEffectiveLaneRange(laneCount)
+    local count = math.floor((tonumber(laneCount) or 6) + 0.5)
+    if count < 1 then count = 1 end
+    if count > 6 then count = 6 end
+    local start = math.floor((6 - count) / 2) + 1
+    return start, count
+end
+
+local function buildInputMapForLaneCount(baseMap, laneCount)
+    local start, count = getEffectiveLaneRange(laneCount)
+    local map = {}
+    for token, lane in pairs(baseMap or {}) do
+        local laneNum = tonumber(lane) or 1
+        if laneNum >= start and laneNum < start + count then
+            map[token] = laneNum - start + 1
+        end
+    end
+    return map
+end
+
 laneInputTokens = {}
 do
     local seen = {}
     for inputToken in pairs(laneInputMap) do
+        if not seen[inputToken] then
+            seen[inputToken] = true
+            laneInputTokens[#laneInputTokens + 1] = inputToken
+        end
+    end
+    for inputToken in pairs(gravity2LeftLaneInputMap) do
         if not seen[inputToken] then
             seen[inputToken] = true
             laneInputTokens[#laneInputTokens + 1] = inputToken
@@ -395,12 +508,27 @@ local function normalizeNoteGravity(v)
     return g
 end
 
-local function normalizeLaneIndex(v)
-    local lane = tonumber(v) or 1
+local function normalizeLaneIndex(v, fallback)
+    local lane = tonumber(v)
+    if lane == nil then
+        if fallback ~= nil then
+            return normalizeLaneIndex(fallback)
+        end
+        return 1
+    end
     lane = math.floor(lane + 0.5)
     if lane < 1 then lane = 1 end
-    if lane > 6 then lane = 6 end
+    if lane > activeLaneCount then lane = activeLaneCount end
     return lane
+end
+
+local function getGravityVisualLaneIndex(lane, gravity)
+    local idx = normalizeLaneIndex(lane)
+    local g = normalizeLaneGravity(gravity)
+    if g == 4 then
+        return activeLaneCount - idx + 1
+    end
+    return idx
 end
 
 local function isVerticalNoteDirection(noteDir)
@@ -435,22 +563,105 @@ local function isNoteJudgeDirectionAligned(note, laneDir)
     return isNoteGravityAlignedWithLane(getNoteResolvedGravity(note), laneDir)
 end
 
-local function resolveLaneInput(key, scancode)
-    local lane = nil
+local function normalizeConfiguredInputToken(token)
+    if token == nil then
+        return nil
+    end
 
-    if normalizeLaneGravity(lanegravity) == 4 then
-        lane = gravity4TopLaneInputMap[key]
-        if not lane and scancode then
-            lane = gravity4TopLaneInputMap[scancode]
+    if type(token) ~= "string" then
+        token = tostring(token)
+    end
+
+    token = token:lower()
+    if token == "" then
+        return nil
+    end
+    if token == " " then
+        return "space"
+    end
+    return token
+end
+
+local function getConfiguredLaneBinding(laneName)
+    if settingsdata and settingsdata.keysettings and type(settingsdata.keysettings[laneName]) == "string" then
+        local token = settingsdata.keysettings[laneName]
+        if token ~= "" then
+            return normalizeConfiguredInputToken(token)
+        end
+    end
+    return nil
+end
+
+local function getConfiguredInputToken(actionName)
+    if settingsdata and settingsdata.keysettings and type(settingsdata.keysettings[actionName]) == "string" then
+        local token = settingsdata.keysettings[actionName]
+        if token ~= "" then
+            return normalizeConfiguredInputToken(token)
+        end
+    end
+    return nil
+end
+
+local function resolveLaneInput(key, scancode)
+    local laneBindings = {
+        {name = "leftone", lane = 1},
+        {name = "lefttwo", lane = 2},
+        {name = "lefttree", lane = 3},
+        {name = "rightone", lane = 4},
+        {name = "righttwo", lane = 5},
+        {name = "righttree", lane = 6}
+    }
+
+    local normalizedKey = normalizeConfiguredInputToken(key)
+    local normalizedScancode = normalizeConfiguredInputToken(scancode)
+    local activeLaneInputMap = buildInputMapForLaneCount(laneInputMap, activeLaneCount)
+    local activeGravity2LaneInputMap = buildInputMapForLaneCount(gravity2LeftLaneInputMap, activeLaneCount)
+    local activeGravityLaneInputMap = buildInputMapForLaneCount(gravity4TopLaneInputMap, activeLaneCount)
+
+    local function getMappedLane(map, token)
+        if not map or not token then
+            return nil
+        end
+        local lane = map[token]
+        if lane == nil then
+            return nil
+        end
+        return normalizeLaneIndex(lane)
+    end
+
+    for _, binding in ipairs(laneBindings) do
+        local token = getConfiguredLaneBinding(binding.name)
+        if token and (token == normalizedKey or (normalizedScancode and token == normalizedScancode)) then
+            local mappedLane = getMappedLane(activeLaneInputMap, token)
+                or getMappedLane(activeGravity2LaneInputMap, token)
+                or getMappedLane(activeGravityLaneInputMap, token)
+            if mappedLane ~= nil then
+                return mappedLane
+            end
+        end
+    end
+
+    local laneDir = normalizeLaneGravity(lanegravity)
+    local directionalMap = nil
+    if laneDir == 2 then
+        directionalMap = activeGravity2LaneInputMap
+    elseif laneDir == 4 then
+        directionalMap = activeGravityLaneInputMap
+    end
+
+    if directionalMap then
+        local lane = getMappedLane(directionalMap, normalizedKey)
+        if not lane and normalizedScancode then
+            lane = getMappedLane(directionalMap, normalizedScancode)
         end
         if lane then
             return lane
         end
     end
 
-    lane = laneInputMap[key]
-    if not lane and scancode then
-        lane = laneInputMap[scancode]
+    local lane = getMappedLane(activeLaneInputMap, normalizedKey)
+    if not lane and normalizedScancode then
+        lane = getMappedLane(activeLaneInputMap, normalizedScancode)
     end
     return lane
 end
@@ -466,7 +677,7 @@ local function resetJudgeCounts()
 end
 
 local function clearLaneInputStates()
-    for lane = 1, 6 do
+    for lane = 1, activeLaneCount do
         laneHoldStates[lane] = false
         lanePressGlowTimers[lane] = 0
     end
@@ -499,11 +710,32 @@ local function isInputTokenDown(inputToken)
 end
 
 local function updateLaneHoldStatesFromKeyboard()
-    for lane = 1, 6 do
+    for lane = 1, activeLaneCount do
         laneHoldStates[lane] = false
     end
 
+    local tokens = {}
+    local seen = {}
+    local function addToken(token)
+        if not token or token == "" then
+            return
+        end
+        if not seen[token] then
+            seen[token] = true
+            tokens[#tokens + 1] = token
+        end
+    end
+
+    local laneBindings = {"leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree"}
+    for _, laneName in ipairs(laneBindings) do
+        addToken(getConfiguredLaneBinding(laneName))
+    end
+
     for _, inputToken in ipairs(laneInputTokens) do
+        addToken(inputToken)
+    end
+
+    for _, inputToken in ipairs(tokens) do
         if isInputTokenDown(inputToken) then
             local lane = resolveLaneInput(inputToken, inputToken)
             if lane then
@@ -529,7 +761,7 @@ end
 
 local function updateLanePressGlowTimers(dt)
     local step = math.max(0, tonumber(dt) or 0)
-    for lane = 1, 6 do
+    for lane = 1, activeLaneCount do
         lanePressGlowTimers[lane] = math.max(0, (lanePressGlowTimers[lane] or 0) - step)
     end
 end
@@ -594,6 +826,18 @@ end
 
 local function getLongNoteEndGraceSeconds()
     return math.max(0, tonumber(longNoteEndGraceMs) or 0) / 1000
+end
+
+local function shouldProcessLongHoldLogic()
+    if paused or waitingResume or finished then
+        return false
+    end
+
+    if not bgmSource or musicload ~= 1 then
+        return false
+    end
+
+    return songStarted == true
 end
 
 local function breakLongHold(pair)
@@ -852,6 +1096,10 @@ local function updateMissJudgements(songTime)
 end
 
 local function updateLongHoldJudgements(songTime)
+    if not shouldProcessLongHoldLogic() then
+        return
+    end
+
     if not longNotePairs or #longNotePairs == 0 then
         return
     end
@@ -866,7 +1114,8 @@ local function updateLongHoldJudgements(songTime)
             local endTime = tonumber(endNote.timeSec) or 0
             local graceStartTime = endTime - graceSec
             local held = laneHoldStates[lane] == true
-            local directionAligned = isNoteJudgeDirectionAligned(startNote, lanegravity)
+            -- ロングノーツの終了ノートの gravity で判定する（複数の gravity イベント区間に対応）
+            local directionAligned = isNoteJudgeDirectionAligned(endNote, lanegravity)
 
             if pair.holdBroken then
                 if songTime > (endTime + graceSec) then
@@ -893,6 +1142,10 @@ local function updateLongHoldJudgements(songTime)
 end
 
 local function registerLongHoldRelease(lane, songTime)
+    if not shouldProcessLongHoldLogic() then
+        return
+    end
+
     if not longNotePairs or #longNotePairs == 0 then
         return
     end
@@ -983,8 +1236,91 @@ local function buildLongNotePairs(notes)
     return pairs
 end
 
+local function getDisplaySize()
+    local w = tonumber(displayx) or love.graphics.getWidth()
+    local h = tonumber(displayy) or love.graphics.getHeight()
+    return w, h
+end
+
+local function buildJudgeLine(gravity)
+    local g = normalizeLaneGravity(gravity)
+    local w, h = getDisplaySize()
+    local margin = math.min(w, h) * 0.15
+
+    if g == 1 then
+        local y = h - margin
+        return {x1 = 0, y1 = y, x2 = w, y2 = y}
+    elseif g == 3 then
+        local y = margin
+        return {x1 = 0, y1 = y, x2 = w, y2 = y}
+    elseif g == 2 then
+        local x = margin
+        return {x1 = x, y1 = 0, x2 = x, y2 = h}
+    else
+        local x = w - margin
+        return {x1 = x, y1 = 0, x2 = x, y2 = h}
+    end
+end
+
 local function triggerDirectionGlow()
     directionGlowTimer = directionGlowDuration
+end
+
+local function getUpcomingGravityWarning(songTime)
+    local events = chartRuntime.gravityEvents
+    if not events or #events == 0 then
+        return nil
+    end
+
+    local currentSongTime = tonumber(songTime) or tonumber(musictime) or 0
+    local bpm = tonumber(chartRuntime.chart and chartRuntime.chart.meta and chartRuntime.chart.meta.bpm) or 120
+    if bpm <= 0 then
+        bpm = 120
+    end
+    local leadSec = 240 / bpm
+    local idx = chartRuntime.nextGravityEventIndex or 1
+
+    while idx <= #events do
+        local event = events[idx]
+        local eventTime = tonumber(event and event.timeSec) or 0
+        if eventTime <= currentSongTime then
+            idx = idx + 1
+        else
+            local remaining = eventTime - currentSongTime
+            if remaining > leadSec then
+                return nil
+            end
+            return {
+                laneGravity = noteGravityToLaneDirection(event.gravity),
+                timeLeft = remaining,
+                leadSec = leadSec
+            }
+        end
+    end
+
+    return nil
+end
+
+local function drawUpcomingGravityWarning(songTime)
+    local warning = getUpcomingGravityWarning(songTime)
+    if not warning then
+        return
+    end
+
+    local line = buildJudgeLine(warning.laneGravity)
+    if not line then
+        return
+    end
+
+    local remaining = math.max(0, warning.timeLeft)
+    local progress = 1 - (remaining / math.max(0.001, warning.leadSec))
+    local pulse = 0.5 + 0.5 * math.sin((songTime or 0) * 18 + warning.laneGravity * 2.0)
+    local alpha = clamp01(0.12 + 0.68 * pulse * (0.25 + 0.75 * (1 - progress)))
+
+    love.graphics.setLineWidth(3)
+    love.graphics.setColor(1.0, 0.7, 0.2, alpha)
+    love.graphics.line(line.x1, line.y1, line.x2, line.y2)
+    love.graphics.setLineWidth(1)
 end
 
 local function getDirectionGlow()
@@ -992,12 +1328,6 @@ local function getDirectionGlow()
         return 0
     end
     return clamp01(directionGlowTimer / directionGlowDuration)
-end
-
-local function getDisplaySize()
-    local w = tonumber(displayx) or love.graphics.getWidth()
-    local h = tonumber(displayy) or love.graphics.getHeight()
-    return w, h
 end
 
 local function pointInRect(px, py, rect)
@@ -1165,10 +1495,17 @@ end
 local function ensureNoteSePoolLoaded()
     for i = 1, SE_COUNT do
         if not noteSE[i] then
-            noteSE[i] = love.audio.newSource("lib/data/BGM/note.ogg", "static")
+            local ok, source = pcall(love.audio.newSource, "lib/data/BGM/note.ogg", "static")
+            if ok and source then
+                noteSE[i] = source
+            else
+                noteSE[i] = nil
+                log.warn("Warning: Failed to load note SE source.")
+            end
         end
-        if noteSE[i] and noteSE[i].stop then
-            noteSE[i]:stop()
+        local s = noteSE[i]
+        if s and s.stop then
+            pcall(s.stop, s)
         end
     end
     seIndex = 1
@@ -1217,37 +1554,17 @@ local function buildLaneLines(gravity)
     local w, h = getDisplaySize()
     local lines = {}
     if g == 1 or g == 3 then
-        for i = 1, 5 do
-            local x = w / 6 * i
+        for i = 1, activeLaneCount - 1 do
+            local x = w / activeLaneCount * i
             lines[i] = {x1 = x, y1 = 0, x2 = x, y2 = h}
         end
     else
-        for i = 1, 5 do
-            local y = h / 6 * i
+        for i = 1, activeLaneCount - 1 do
+            local y = h / activeLaneCount * i
             lines[i] = {x1 = 0, y1 = y, x2 = w, y2 = y}
         end
     end
     return lines
-end
-
-local function buildJudgeLine(gravity)
-    local g = normalizeLaneGravity(gravity)
-    local w, h = getDisplaySize()
-    local margin = math.min(w, h) * 0.15
-
-    if g == 1 then
-        local y = h - margin
-        return {x1 = 0, y1 = y, x2 = w, y2 = y}
-    elseif g == 3 then
-        local y = margin
-        return {x1 = 0, y1 = y, x2 = w, y2 = y}
-    elseif g == 2 then
-        local x = margin
-        return {x1 = x, y1 = 0, x2 = x, y2 = h}
-    else
-        local x = w - margin
-        return {x1 = x, y1 = 0, x2 = x, y2 = h}
-    end
 end
 
 local function cloneLine(line)
@@ -1443,8 +1760,9 @@ local function buildRuntimeNotesFromUnifiedList(sourceNotes)
             sec = ms and (ms / 1000) or 0
         end
 
+        local laneFallback = ((#runtimeNotes % math.max(1, activeLaneCount)) + 1)
         runtimeNotes[#runtimeNotes + 1] = {
-            lane = normalizeLaneIndex(n.lane),
+            lane = normalizeLaneIndex(n.lane, laneFallback),
             type = tonumber(n.type) or 0,
             timeSec = sec,
             gravity = tonumber(n.gravity)
@@ -1535,6 +1853,51 @@ local function buildRuntimeNotesFromLaneTimes(laneTimesByLane)
     return runtimeNotes
 end
 
+local function getNoteApproach(note)
+    local speed = tonumber(note and note.scrollSpeed) or baseNoteSpeed
+    speed = math.max(0.1, speed)
+    return math.max(0.05, noteApproachSeconds / speed)
+end
+
+local function applyChartSpeedEvents(notes, actions)
+    local speed = math.max(0.1, baseNoteSpeed)
+    local events = {}
+
+    for _, event in ipairs(actions or {}) do
+        local eventType = type(event.type) == "string"
+            and string.lower(event.type)
+            or ""
+        local value = event.args and tonumber(event.args[1])
+
+        if (eventType == "hs" or eventType == "scrollmove")
+            and value
+            and value > 0
+        then
+            events[#events + 1] = {
+                timeSec = tonumber(event.time) or 0,
+                speed = value
+            }
+        end
+    end
+
+    table.sort(events, function(a, b)
+        return a.timeSec < b.timeSec
+    end)
+
+    local eventIndex = 1
+    for _, note in ipairs(notes or {}) do
+        while eventIndex <= #events
+            and events[eventIndex].timeSec <= note.timeSec
+        do
+            speed = events[eventIndex].speed
+            eventIndex = eventIndex + 1
+        end
+        note.scrollSpeed = speed
+    end
+
+    return events
+end
+
 local function applyResolvedGravityToNotes(notes, gravityEvents, initialGravity)
     local currentGravity = normalizeNoteGravity(initialGravity or 1)
     local idx = 1
@@ -1568,7 +1931,19 @@ local function buildChartRuntime(chart, diffKey)
     -- レーン単位データ（`,` 区切り基準）を優先してノーツ時間を構築する。
     local runtimeNotes = {}
     if type(chart.lanes) == "table" then
+        log.trace("loadChartTable: chart.lanes is set, selectedDiff=" .. tostring(selectedDiff))
+        if chart.lanes[selectedDiff] then
+            log.trace("  chart.lanes[" .. tostring(selectedDiff) .. "] exists")
+            for laneKey, laneNotes in pairs(chart.lanes[selectedDiff]) do
+                log.trace("    lane " .. tostring(laneKey) .. ": " .. #(laneNotes or {}) .. " notes")
+            end
+        else
+            log.trace("  chart.lanes[" .. tostring(selectedDiff) .. "] is nil")
+        end
         runtimeNotes = buildRuntimeNotesFromLaneTable(chart.lanes[selectedDiff])
+        log.trace("  buildRuntimeNotesFromLaneTable returned " .. #runtimeNotes .. " runtime notes")
+    else
+        log.trace("loadChartTable: chart.lanes is not set")
     end
     if #runtimeNotes == 0 and type(chart.laneNumbers) == "table" then
         runtimeNotes = buildRuntimeNotesFromLaneNumbers(chart.laneNumbers[selectedDiff])
@@ -1605,6 +1980,26 @@ local function buildChartRuntime(chart, diffKey)
         table.sort(chartRuntime.gravityEvents, function(a, b) return a.timeSec < b.timeSec end)
     end
 
+    activeLaneCount = 6
+    local laneEvents = type(actions) == "table" and actions or {}
+    log.trace("loadChartTable: selectedDiff=" .. selectedDiff .. " actions count=" .. #laneEvents)
+    for i, event in ipairs(laneEvents) do
+        log.trace("  action[" .. i .. "]: type=" .. tostring(event.type) .. " args=" .. (event.args and tostring(event.args[1]) or "nil"))
+    end
+    for _, event in ipairs(laneEvents) do
+        local eventType = type(event.type) == "string" and string.lower(event.type) or ""
+        local laneValue = event.args and tonumber(event.args[1])
+        if eventType == "lane" and laneValue then
+            laneValue = math.floor(laneValue + 0.5)
+            if laneValue == 2 or laneValue == 4 or laneValue == 6 then
+                activeLaneCount = laneValue
+            end
+            log.debug("loadChartTable: Found #Lane event with value=" .. laneValue .. " -> activeLaneCount=" .. activeLaneCount)
+        end
+    end
+
+    applyChartSpeedEvents(runtimeNotes, actions)
+
     local initialGravity = 1
     if #chartRuntime.notes > 0 and chartRuntime.notes[1].gravity then
         initialGravity = normalizeNoteGravity(chartRuntime.notes[1].gravity)
@@ -1630,9 +2025,11 @@ local function getLaneBoundsForGravity(lane, gravity)
     if laneIndex < 1 then laneIndex = 1 end
     if laneIndex > 6 then laneIndex = 6 end
 
+    local visualLaneIndex = getGravityVisualLaneIndex(laneIndex, gravity)
+
     if gravity == 1 or gravity == 3 then
-        local left = (w / 6) * (laneIndex - 1)
-        local right = (w / 6) * laneIndex
+        local left = (w / activeLaneCount) * (laneIndex - 1)
+        local right = (w / activeLaneCount) * laneIndex
         return {
             left = left,
             right = right,
@@ -1642,8 +2039,8 @@ local function getLaneBoundsForGravity(lane, gravity)
         }
     end
 
-    local top = (h / 6) * (laneIndex - 1)
-    local bottom = (h / 6) * laneIndex
+    local top = (h / activeLaneCount) * (visualLaneIndex - 1)
+    local bottom = (h / activeLaneCount) * visualLaneIndex
     return {
         left = 0,
         right = w,
@@ -1743,7 +2140,7 @@ local function getLaneBandForNoteDirection(lane, noteDir)
     local g = normalizeNoteGravity(noteDir)
 
     if isVerticalNoteDirection(g) then
-        local laneWidth = w / 6
+        local laneWidth = w / activeLaneCount
         local left = laneWidth * (laneIndex - 1)
         local right = laneWidth * laneIndex
         return {
@@ -1757,7 +2154,7 @@ local function getLaneBandForNoteDirection(lane, noteDir)
         }
     end
 
-    local laneHeight = h / 6
+    local laneHeight = h / activeLaneCount
     local top = laneHeight * (laneIndex - 1)
     local bottom = laneHeight * laneIndex
     return {
@@ -1771,7 +2168,7 @@ local function getLaneBandForNoteDirection(lane, noteDir)
     }
 end
 
-local function buildFreeNotePath(lane, noteDir)
+local function buildFreeNotePath(lane, noteDir, approach)
     local w, h = getDisplaySize()
     local band = getLaneBandForNoteDirection(lane, noteDir)
     local margin = math.min(w, h) * 0.15
@@ -1807,7 +2204,7 @@ local function buildFreeNotePath(lane, noteDir)
         hx = w - margin
     end
 
-    local approach = math.max(0.001, tonumber(noteApproachSeconds) or 0)
+    approach = math.max(0.001, tonumber(approach) or tonumber(noteApproachSeconds) or 0)
     return {
         spawnX = sx,
         spawnY = sy,
@@ -1841,9 +2238,11 @@ end
 local function buildNoteRenderState(note, songTime, fallbackDir, approach)
     local approachSec = math.max(0.001, tonumber(approach) or tonumber(noteApproachSeconds) or 0)
     local noteTime = tonumber(note.timeSec) or 0
-    local spawnTime = noteTime - approachSec
+    local noteApproachSec = getNoteApproach(note)
+    approachSec = noteApproachSec
+    local spawnTime = noteTime - noteApproachSec
     local noteDir = normalizeNoteGravity(note.resolvedGravity or note.gravity or fallbackDir)
-    local path = buildFreeNotePath(note.lane, noteDir)
+    local path = buildFreeNotePath(note.lane, noteDir, approachSec)
     local travelTime = songTime - spawnTime
     local x = path.spawnX + path.velX * travelTime
     local y = path.spawnY + path.velY * travelTime
@@ -1943,7 +2342,7 @@ function updateNoteDrawQueue(songTime)
             goto continue
         end
 
-        local spawnTime = note.timeSec - approach
+        local spawnTime = note.timeSec - getNoteApproach(note)
 
         if spawnTime > songTime then
             break
@@ -2000,6 +2399,11 @@ end
 
 local function getNoteColor(noteType, tintEnabled)
     local t = tonumber(noteType) or 0
+    if t == 1 then
+        -- 1: ノーマルノーツをグレーに統一
+        return 0.7, 0.7, 0.7
+    end
+
     if not tintEnabled then
         if t == 3 then
             return 0.85, 0.85, 0.85
@@ -2007,10 +2411,7 @@ local function getNoteColor(noteType, tintEnabled)
         return 0.62, 0.66, 0.72
     end
 
-    if t == 1 then
-        -- 1: ノーマルノーツ
-        return 0.16, 0.78, 0.98
-    elseif t == 2 then
+    if t == 2 then
         -- 2: ロング始点
         return 0.24, 0.86, 1.0
     elseif t == 3 then
@@ -2021,6 +2422,26 @@ local function getNoteColor(noteType, tintEnabled)
         return 0.62, 0.74, 1.0
     end
     return 1.0, 1.0, 1.0
+end
+
+local function getLaneColor(lane, tintEnabled)
+    if not tintEnabled or activeLaneCount ~= 6 then
+        return nil
+    end
+
+    local laneIndex = normalizeLaneIndex(lane)
+    local color = nil
+
+    if laneIndex == 2 then
+        color = {0.24, 0.86, 1.0}
+    elseif laneIndex == 5 then
+        color = {1.0, 0.62, 0.28}
+    end
+
+    if not color then
+        return nil
+    end
+    return color[1], color[2], color[3]
 end
 
 local function applyBrightness(r, g, b, strength)
@@ -2090,38 +2511,32 @@ local function drawDirectionGlyph(x, y, w, h, alpha, glow, horizontal)
     love.graphics.setLineWidth(1)
 end
 
-local function drawStylishNote(x, y, w, h, noteType, alpha, glow, tintEnabled)
-    local baseR, baseG, baseB = getNoteColor(noteType, tintEnabled)
-    local br, bg, bb = applyBrightness(baseR, baseG, baseB, glow * 0.36)
+local function drawStylishNote(x, y, w, h, noteType, alpha, glow, tintEnabled, lane)
+    local baseR, baseG, baseB = getLaneColor(lane, tintEnabled)
+    if not baseR then
+        baseR, baseG, baseB = getNoteColor(noteType, tintEnabled)
+    end
+
     local baseAlpha = clamp01(alpha or 1)
     if baseAlpha <= 0 then
         return
     end
 
-    local minSize = math.max(1, math.min(w, h))
-    local glowPad = math.max(1.2, minSize * 0.18)
-    love.graphics.setColor(br, bg, bb, clamp01(baseAlpha * (0.2 + glow * 0.22)))
-    love.graphics.rectangle("fill", x - glowPad, y - glowPad, w + glowPad * 2, h + glowPad * 2)
+    local br, bg, bb = applyBrightness(baseR, baseG, baseB, glow * 0.18)
+    local pad = math.max(1, math.min(w, h) * 0.06)
+    local visualAlpha = clamp01(baseAlpha * 1.18)
 
-    love.graphics.setColor(0.03, 0.05, 0.08, clamp01(baseAlpha * 0.92))
+    love.graphics.setColor(br * 0.14, bg * 0.14, bb * 0.14, clamp01(visualAlpha * 0.22))
+    love.graphics.rectangle("fill", x - pad, y - pad, w + pad * 2, h + pad * 2)
+
+    love.graphics.setColor(br, bg, bb, clamp01(visualAlpha * 1.02))
     love.graphics.rectangle("fill", x, y, w, h)
 
-    local inset = math.max(1, minSize * 0.14)
-    local innerX = x + inset
-    local innerY = y + inset
-    local innerW = w - inset * 2
-    local innerH = h - inset * 2
-    if innerW > 1 and innerH > 1 then
-        love.graphics.setColor(br * 0.92, bg * 0.94, bb * 0.97, clamp01(baseAlpha * (0.76 + glow * 0.12)))
-        love.graphics.rectangle("fill", innerX, innerY, innerW, innerH)
+    love.graphics.setColor(0.08, 0.10, 0.15, clamp01(visualAlpha * 1.0))
+    love.graphics.rectangle("fill", x + 1, y + 1, math.max(1, w - 2), math.max(1, h - 2))
 
-        local shineThickness = math.max(1, innerH * 0.28)
-        love.graphics.setColor(1, 1, 1, clamp01(baseAlpha * (0.22 + glow * 0.12)))
-        love.graphics.rectangle("fill", innerX, innerY, innerW, shineThickness)
-    end
-
-    love.graphics.setColor(0.9, 0.97, 1.0, clamp01(baseAlpha * (0.5 + glow * 0.1)))
-    love.graphics.rectangle("line", x, y, w, h)
+    love.graphics.setColor(1, 1, 1, clamp01(visualAlpha * 0.16))
+    love.graphics.rectangle("fill", x + 2, y + 2, math.max(1, w - 4), math.max(1, h * 0.18))
 end
 
 local function lerp(a, b, t)
@@ -2172,7 +2587,10 @@ local function drawLongNoteConnector(startState, endState, alpha, tintEnabled, h
         return
     end
 
-    local verticalFlow = isVerticalNoteDirection(startState.dir)
+    -- 開始と終了ノートのどちらがverticalかを判定（複数gravity対応）
+    local startVertical = isVerticalNoteDirection(startState.dir)
+    local endVertical = isVerticalNoteDirection(endState.dir)
+    local verticalFlow = startVertical and endVertical  -- 両方垂直の場合のみ垂直と判定
     local startW, startH = getNoteVisualSize(startState.dir, startState.stickLength, startState.stickThickness)
     local endW, endH = getNoteVisualSize(endState.dir, endState.stickLength, endState.stickThickness)
     local minor = verticalFlow and math.max(startW, endW) or math.max(startH, endH)
@@ -2286,8 +2704,8 @@ local function drawLongNoteBodies(songTime)
             
             if startNote.judged and startNote.hit then
                 -- 始点が判定済みで hit（ボタン押下）の場合
-                if not startNote.fixedJudgeLinePos and judgeLinePosition then
-                    -- 判定ラインの位置を固定値として保存
+                -- 判定ラインの位置を毎フレーム更新（アニメーション対応）
+                if judgeLinePosition then
                     local x1 = judgeLinePosition.x1 or 0
                     local y1 = judgeLinePosition.y1 or 0
                     local x2 = judgeLinePosition.x2 or 0
@@ -2422,6 +2840,14 @@ function play.setCollections(c)
         musicfiles = collections.audio or {}
         chartfiles = collections.charts or {}
         imagefiles = collections.images or {}
+
+        local collectionCount = 0
+        if type(musicfiles) == "table" then
+            collectionCount = #musicfiles
+        end
+        if collectionCount <= 1 and type(chartfiles) == "table" and #chartfiles <= 1 then
+            selectindex = 1
+        end
     else
         musicfiles = nil
         chartfiles = nil
@@ -2436,6 +2862,14 @@ end
 
 function play.getCollections()
     return collections
+end
+
+function play.getCombo()
+    return math.max(0, math.floor(tonumber(combo) or 0))
+end
+
+function play.getMaxCombo()
+    return math.max(0, math.floor(tonumber(maxCombo) or 0))
 end
 
 
@@ -2625,7 +3059,12 @@ local function resolveJacketEntry(selectedIndex)
         return nil
     end
 
-    local chartEntry = chartfiles and chartfiles[selectedIndex]
+    local normalizedIndex = tonumber(selectedIndex) or 1
+    if not chartfiles or not chartfiles[normalizedIndex] then
+        normalizedIndex = 1
+    end
+
+    local chartEntry = chartfiles and chartfiles[normalizedIndex]
     local chartArchive = type(chartEntry) == "table" and chartEntry.archive
     if chartArchive then
         for _, imageEntry in ipairs(imagefiles) do
@@ -2635,7 +3074,7 @@ local function resolveJacketEntry(selectedIndex)
         end
     end
 
-    return imagefiles[selectedIndex]
+    return imagefiles[normalizedIndex]
 end
 
 
@@ -2645,6 +3084,9 @@ end
 
 local function getSelectedSongDisplayData()
     local selectedIndex = tonumber(selectindex) or 1
+    if type(chartfiles) == "table" and #chartfiles > 0 and not chartfiles[selectedIndex] then
+        selectedIndex = 1
+    end
 
     local displayTitle = "Unknown Title"
     if type(musicname) == "string" and musicname ~= "" then
@@ -2662,7 +3104,22 @@ local function getSelectedSongDisplayData()
 
     local displayLevel = "Unknown Level"
     local rawLevel = "Unknown Level"
-    if type(musiclevel) == "string" and musiclevel ~= "" then
+    local difficultyKey = nil
+
+    if type(musicdifficulty) == "string" and musicdifficulty ~= "" then
+        local numericDifficulty = tostring(musicdifficulty):match("^%s*[%+%-]?%d+%.?%d*%s*$")
+        if not numericDifficulty then
+            difficultyKey = musicdifficulty
+        end
+    end
+    if not difficultyKey and type(musicselect) == "table" and type(musicselect.selectedDifficulty) == "string" and musicselect.selectedDifficulty ~= "" then
+        difficultyKey = musicselect.selectedDifficulty
+    end
+
+    if difficultyKey then
+        rawLevel = difficultyKey
+        displayLevel = string.upper(difficultyKey)
+    elseif type(musiclevel) == "string" and musiclevel ~= "" then
         rawLevel = musiclevel
         displayLevel = formatDifficultyLevel(musiclevel)
     elseif chartfiles and chartfiles[selectedIndex] and chartfiles[selectedIndex].level then
@@ -2719,7 +3176,15 @@ local function transitionToResult()
     updateLongHoldJudgements(finalJudgeTime)
     updateMissJudgements(finalJudgeTime)
     publishResultData()
-    changeProgram(7)
+    if type(resultTransitionHandler) == "function" then
+        resultTransitionHandler()
+    else
+        changeProgram(7)
+    end
+end
+
+function play.setResultTransitionHandler(handler)
+    resultTransitionHandler = type(handler) == "function" and handler or nil
 end
 
 function musicdatadraw()
@@ -2730,6 +3195,7 @@ function musicdatadraw()
     local levelcolor = songData.levelColor or {1, 1, 1}
     local drawAlpha = alpha or 0
     local drawJacketAlpha = jacketalpha or 0
+    local displayx, displayy = getDisplaySize()
     if drawAlpha > 0.001 or drawJacketAlpha > 0.001 then
         metaDisplayShown = true
     end
@@ -2759,8 +3225,16 @@ function musicdatadraw()
         love.graphics.print(countText, displayx / 2 - safeArtistFont:getWidth(countText) / 2, displayy / 2 + displayy / 4)
     end
     love.graphics.setFont(safeTitleFont)
-    love.graphics.setColor(levelcolor[1], levelcolor[2], levelcolor[3], drawAlpha)
-    love.graphics.print(displayLevel, displayx / 2 - safeTitleFont:getWidth(displayLevel) / 2, displayy / 2 + displayy / 5 * 1.5)
+    love.graphics.setFont(safeTitleFont)
+love.graphics.setColor(levelcolor[1], levelcolor[2], levelcolor[3], drawAlpha)
+
+local levelWidth = safeTitleFont:getWidth(displayLevel)
+local levelHeight = safeTitleFont:getHeight()
+
+local levelX = displayx / 2 - levelWidth / 2
+local levelY = displayy * 0.78 - levelHeight / 2
+
+love.graphics.print(displayLevel, levelX, levelY)
 end
 
 
@@ -2796,6 +3270,8 @@ function play.load()
     chartRuntime.gravityEvents = {}
     chartRuntime.nextGravityEventIndex = 1
     chartRuntime.difficulty = "easy"
+    activeLaneCount = 6
+    baseNoteSpeed = 1.0
     noteDrawQueue = {}
     noteRenderStateCache = {}
     longNotePairs = {}
@@ -2816,13 +3292,12 @@ function play.load()
     if songTitle == "" then
         songTitle = getSelectedSongDisplayData().title or ""
     end
-    reportSongRequest(songTitle, musiclevel or chartRuntime.difficulty or "")
-    log.info(tostring(musicname), tostring(musiclevel) .. "をプレイ")
+    local requestDifficulty = musicdifficulty or musiclevel or chartRuntime.difficulty or ""
+    log.info(tostring(musicname), tostring(requestDifficulty) .. "をプレイ")
 
-    local selectedIndex = tonumber(selectindex)
-    if not selectedIndex then
-        log.error("Error: Invalid selected index.")
-        return
+    local selectedIndex = tonumber(selectindex) or 1
+    if type(musicfiles) == "table" and #musicfiles > 0 and not musicfiles[selectedIndex] then
+        selectedIndex = 1
     end
 
     if not musicfiles or not musicfiles[selectedIndex] then
@@ -2842,20 +3317,19 @@ function play.load()
     end
     bgmSource:setLooping(false)
 
-    local selectedChart = chartfiles and chartfiles[selectedIndex]
+    local selectedChart = chartfiles and chartfiles[selectedIndex] or (chartfiles and chartfiles[1])
     local chartTable = loadChartTable(selectedChart, false)
+    local selectedDifficultyKey = musicdifficulty or musiclevel
     if chartTable then
-        local initialGravity = buildChartRuntime(chartTable, musiclevel)
+        local initialGravity = buildChartRuntime(chartTable, selectedDifficultyKey)
         notegravity = normalizeNoteGravity(initialGravity)
     else
-        buildChartRuntime(nil, musiclevel)
+        buildChartRuntime(nil, selectedDifficultyKey)
         notegravity = 1
         log.warn("Warning: chart data could not be loaded. notes will be empty.")
     end
-
     local metaDisplayTotal = getMetaDisplayTotalSeconds()
     startDelay = metaDisplayTotal + musicStartAfterMetaSeconds
-
     local jacketEntry = resolveJacketEntry(selectedIndex)
     jacketimg = buildJacketImage(jacketEntry)
     if not jacketimg and jacketEntry then
@@ -2906,8 +3380,9 @@ function reloadCurrentChart()
     longNotePairs = {}
     chartRuntime.currentIndex = 1
 
+    local selectedDifficultyKey = musicdifficulty or musiclevel
     if chartTable then
-        local initialGravity = buildChartRuntime(chartTable, musiclevel)
+        local initialGravity = buildChartRuntime(chartTable, selectedDifficultyKey)
         notegravity = normalizeNoteGravity(initialGravity)
         log.info("チャートを再読み込みしました")
         return true
@@ -3059,6 +3534,24 @@ function play.keypressed(key, scancode, isrepeat)
         return
     end
 
+    if key == "-" or key == "kp-" then
+        baseNoteSpeed = math.max(0.1, baseNoteSpeed - 0.1)
+        for _, note in ipairs(chartRuntime.notes) do
+            if not note.judged then
+                note.scrollSpeed = baseNoteSpeed
+            end
+        end
+        return
+    elseif key == "+" or key == "=" or key == "kp+" then
+        baseNoteSpeed = math.min(5.0, baseNoteSpeed + 0.1)
+        for _, note in ipairs(chartRuntime.notes) do
+            if not note.judged then
+                note.scrollSpeed = baseNoteSpeed
+            end
+        end
+        return
+    end
+
     local lane = resolveLaneInput(key, scancode)
     if lane then
         setLaneHoldState(lane, true)
@@ -3072,19 +3565,38 @@ function play.keypressed(key, scancode, isrepeat)
         handleLaneInputJudge(lane, judgeTime)
         if not isrepeat then
             triggerLanePressGlow(lane)
-            local s = noteSE[seIndex]
-			s:stop()
-			s:play()
+            local s = noteSE and noteSE[seIndex]
+            if s and s.stop and s.play then
+                pcall(s.stop, s)
+                pcall(s.play, s)
+            end
         end
         return
-    elseif key == "a" then
+    end
+
+    local normalizedKey = normalizeConfiguredInputToken(key)
+    local normalizedScancode = normalizeConfiguredInputToken(scancode)
+    local directionActions = {
+        moveup = 3,
+        movedown = 1,
+        moveleft = 2,
+        moveright = 4
+    }
+    for actionName, gravityValue in pairs(directionActions) do
+        local token = getConfiguredInputToken(actionName)
+        if token and (token == normalizedKey or token == normalizedScancode) then
+            lanegravity = gravityValue
+            return
+        end
+    end
+
+    if normalizedKey == "a" then
         lanegravity = 2
-        
-    elseif key == "s" then
+    elseif normalizedKey == "s" then
         lanegravity = 1
-    elseif key == "d" then
+    elseif normalizedKey == "d" then
         lanegravity = 4
-    elseif key == "w" then
+    elseif normalizedKey == "w" then
         lanegravity = 3
     end
 end
@@ -3154,7 +3666,7 @@ function notelane()
     local reverseDirection = (laneAnim.toGravity == 2 or laneAnim.toGravity == 3)
     local laneDir = normalizeLaneGravity(laneAnim.toGravity or lanegravity)
 
-    for lane = 1, 6 do
+    for lane = 1, activeLaneCount do
         local press = getLanePressGlow(lane)
         if press > 0 then
             local b = getLaneBoundsForGravity(lane, laneDir)
@@ -3182,6 +3694,9 @@ function drawJudgeline()
     if not judgeAnim.currentLine then
         return
     end
+
+    local currentSongTime = getCurrentSongTime() or tonumber(musictime) or 0
+    drawUpcomingGravityWarning(currentSongTime)
 
     local drawProgress, lineAlpha = getLineIntroVisual()
     local glow = getDirectionGlow()
@@ -3211,7 +3726,7 @@ function drawNotes()
         local w, h = getNoteVisualSize(noteDir, stickLength, stickThickness)
         local x = n.x - w * 0.5
         local y = n.y - h * 0.5
-        drawStylishNote(x, y, w, h, n.type, alpha, glow, tintEnabled)
+        drawStylishNote(x, y, w, h, n.type, alpha, glow, tintEnabled, n.lane)
     end
 end
 

@@ -75,7 +75,7 @@ local _ = {
   ]]
 }
 
-_.API_URL = "http://gamejolt.com/api/game/v1/"
+_.API_URL = "https://api.gamejolt.com/api/game/v1/"
 
 function _:init(game_id, private_key)
 	self.GAME_ID = game_id
@@ -86,16 +86,54 @@ end
 function _:_add_signature(url)
 	local url_with_pkey = url .. self.PRIVATE_KEY
 	local signature = md5.sumhexa(url_with_pkey)
-	return url .. "&signature=" .. signature
+	return signature
 end
 
 function _:request(q)
 	q = q or "?"
-	q = self.API_URL .. q .. "&format=json&game_id=" .. self.GAME_ID
-	q = self:_add_signature(q)
-	q = string.gsub(q, "%s+", "%%20")
-	log.debug(q)
-	local data, status = http.request(q)
+	local path = q
+	local query = ""
+	local queryStart = q:find("?", 1, true)
+	if queryStart then
+		path = q:sub(1, queryStart - 1)
+		query = q:sub(queryStart + 1)
+	end
+
+	local params = {}
+	for part in query:gmatch("([^&]+)") do
+		local key, value = part:match("^([^=]*)=(.*)$")
+		if key then
+			params[key] = value
+		else
+			params[part] = ""
+		end
+	end
+
+	params.format = "json"
+	params.game_id = tostring(self.GAME_ID)
+
+	local keys = {}
+	for key in pairs(params) do
+		table.insert(keys, key)
+	end
+	table.sort(keys)
+
+	local canonicalParts = {}
+	for _, key in ipairs(keys) do
+		local value = params[key]
+		if value == nil then
+			value = ""
+		end
+		canonicalParts[#canonicalParts + 1] = urlEncode(key) .. "=" .. urlEncode(value)
+	end
+
+	local canonicalQuery = table.concat(canonicalParts, "&")
+	local requestUrl = self.API_URL .. path .. "?" .. canonicalQuery
+	local signature = self:_add_signature(requestUrl)
+	requestUrl = requestUrl .. "&signature=" .. signature
+	requestUrl = string.gsub(requestUrl, "%s+", "%%20")
+	log.debug(requestUrl)
+	local data, status = http.request(requestUrl)
 	return data, status
 end
 
