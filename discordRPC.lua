@@ -168,7 +168,6 @@ function discordRPC.initialize(applicationId, autoRegister, optionalSteamId)
     if optionalSteamId ~= nil then
         checkStrArg(optionalSteamId, nil, "optionalSteamId", func)
     end
-
     local eventHandlers = ffi.new("struct DiscordEventHandlers")
     eventHandlers.ready = ready_proxy
     eventHandlers.disconnected = disconnected_proxy

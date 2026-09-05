@@ -64,7 +64,12 @@ local gamejoltusericon
 
 
 
-
+local online =require("online")
+local online_room = require("online_room")
+local online_musicselect = require("online_musicselect")
+local online_play = require("online_play")
+local online_result = require("online_result")
+local online_connect = require("online_connect")
 
 
 
@@ -126,6 +131,7 @@ local reporter = require "error_reporter"
 local presence = {}
 local discordEnabled = false
 local nextPresenceUpdate = 0
+local discordJoinSecretPrefix = "shiftline:"
 
 local programnumber=0
 local program
@@ -170,7 +176,11 @@ local programs = {
     [5] = require "settings",
     [6] = require "storyselecter",
     [7] = require "result",
-    [8] = require "editor"
+    [8] = require "editor",
+    [9] = online_room,
+    [10] = online_musicselect,
+    [11] = online_play,
+    [12] = online_result
 }
 
 local gamestatus = ""
@@ -214,6 +224,154 @@ local function getSongTitleForPresence()
     return title
 end
 
+local function getDiscordJoinSecretFromArguments()
+    if type(arg) ~= "table" then
+        return nil
+    end
+
+    for _, value in ipairs(arg) do
+        if type(value) == "string" then
+            local secret = value:match("^discord%-[^:]+://join/(.+)$")
+            if secret and secret ~= "" then
+                return secret
+            end
+        end
+    end
+
+    return nil
+end
+
+local function registerDiscordLauncherProtocol()
+    if not love.system then
+        return false
+    end
+
+    local source = love.filesystem.getSource()
+    if type(source) ~= "string" or source == "" then
+        return false
+    end
+
+    source = source:gsub("[/\\]+$", "")
+    log.info("Discord RPC: LÖVE source", source)
+    local sourceFile = io.open(source, "rb")
+    if sourceFile then
+        sourceFile:close()
+        source = source:match("^(.*)[/\\][^/\\]+$")
+    end
+
+    local sourceParent = source and source:match("^(.*)[/\\][^/\\]+$")
+    if not sourceParent then
+        log.warn("Discord RPC: launcher directory could not be determined")
+        return false
+    end
+
+    local osName = love.system.getOS()
+    local launcherPath
+    if osName == "Windows" then
+        local candidates = {
+            sourceParent .. "/ShiftLineLauncher.exe",
+            sourceParent .. "/ShiftLineLauncher/ShiftLineLauncher.exe"
+        }
+        for _, candidate in ipairs(candidates) do
+            local candidateFile = io.open(candidate, "rb")
+            if candidateFile then
+                candidateFile:close()
+                launcherPath = candidate
+                break
+            end
+        end
+    elseif osName == "OS X" then
+        local candidates = {
+            sourceParent .. "/ShiftLineLauncher.app",
+            sourceParent .. "/ShiftLineLauncher/ShiftLineLauncher.app"
+        }
+        for _, candidate in ipairs(candidates) do
+            local candidateInfo = io.open(candidate .. "/Contents/Info.plist", "rb")
+            if candidateInfo then
+                candidateInfo:close()
+                launcherPath = candidate
+                break
+            end
+        end
+    else
+        return false
+    end
+
+    if not launcherPath then
+        log.warn("Discord RPC: launcher executable not found", sourceParent)
+        return false
+    end
+
+    local launcherFile = io.open(launcherPath, "rb")
+    local launcherExists = launcherFile ~= nil
+    if launcherFile then
+        launcherFile:close()
+    end
+    if not launcherExists and osName == "OS X" then
+        local infoPlist = launcherPath .. "/Contents/Info.plist"
+        launcherFile = io.open(infoPlist, "rb")
+        launcherExists = launcherFile ~= nil
+        if launcherFile then
+            launcherFile:close()
+        end
+    end
+    if not launcherExists then
+        log.warn("Discord RPC: launcher executable not found", launcherPath)
+        return false
+    end
+
+    local scheme = "discord-" .. appId
+    local function quote(value)
+        return '"' .. value:gsub('"', '\\"') .. '"'
+    end
+
+    if osName == "OS X" then
+        local result = os.execute(
+            "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f " ..
+            quote(launcherPath)
+        )
+        if result ~= true and result ~= 0 then
+            log.warn("Discord RPC: macOS launcher registration failed", tostring(result))
+            return false
+        end
+
+        log.info("Discord RPC: macOS launcher detected", scheme, launcherPath)
+        return true
+    end
+
+    local command = quote(launcherPath) .. " \"%1\""
+    log.info("Discord RPC: Windows launcher command", command)
+    local result = os.execute(
+        "reg add " .. quote("HKCU\\Software\\Classes\\" .. scheme) ..
+        " /ve /t REG_SZ /d " .. quote("URL:" .. scheme) .. " /f"
+    )
+    if result ~= true and result ~= 0 then
+        log.warn("Discord RPC: protocol registration failed", tostring(result))
+        return false
+    end
+
+    result = os.execute(
+        "reg add " .. quote("HKCU\\Software\\Classes\\" .. scheme) ..
+        " /v \"URL Protocol\" /t REG_SZ /d \"\" /f"
+    )
+    if result ~= true and result ~= 0 then
+        log.warn("Discord RPC: protocol metadata registration failed", tostring(result))
+        return false
+    end
+
+    result = os.execute(
+        "reg add " .. quote("HKCU\\Software\\Classes\\" .. scheme .. "\\shell\\open\\command") ..
+        " /ve /t REG_SZ /d " .. quote(command) .. " /f"
+    )
+    if result ~= true and result ~= 0 then
+        log.warn("Discord RPC: launcher command registration failed", tostring(result))
+        return false
+    end
+
+    log.info("Discord RPC: launcher protocol registered", scheme, launcherPath)
+    return true
+end
+
 function setDiscordJoinSecret(joinSecret)
     if type(joinSecret) ~= "string" then
         return
@@ -240,9 +398,8 @@ end
 function discordRPC.joinGame(joinSecret)
     log.info(string.format("Discord: join (%s)", joinSecret))
     if type(joinSecret) == "string" and joinSecret ~= "" then
-        main.pendingDiscordJoinSecret = joinSecret
-        onlineMode = true
-        changeProgram(6)
+        local roomID = joinSecret:match("^" .. discordJoinSecretPrefix .. "(.+)$")
+        main.pendingDiscordJoinSecret = roomID or joinSecret
     end
 end
 
@@ -272,6 +429,8 @@ local icon = love.image.newImageData("img/ico.png")
     math.randomseed(os.time())
     reporter.resendIfExists()
 
+    registerDiscordLauncherProtocol()
+
     -- マウスカーソル
     cursor = love.mouse.newCursor("img/cursor.png", 0, 0)
     love.mouse.setCursor(cursor)
@@ -289,7 +448,7 @@ log.info("Discord RPC: initialize type = " .. type(discordRPC.initialize))
 
 if type(discordRPC.initialize) == "function" then
 
-        local ok, err = pcall(discordRPC.initialize, appId, true)
+    local ok, err = pcall(discordRPC.initialize, appId, false, nil)
         if ok then
             discordEnabled = true
         else
@@ -320,21 +479,24 @@ if type(discordRPC.initialize) == "function" then
         partyId = "",
         partySize = 1,
         partyMax = partyMax,
-        matchSecret = "match secret",
-        joinSecret = "join secret",
-        spectateSecret = "spectate secret",
+        matchSecret = nil,
+        joinSecret = nil,
+        spectateSecret = nil,
         }
 
     if discordEnabled then
         discordRPC.updatePresence(presence)
     end
 
+    main.pendingDiscordJoinSecret = getDiscordJoinSecretFromArguments()
 
 
     nextPresenceUpdate = 0
 end
 
 function love.update(dt)
+
+    online_connect.update()
 
 
 
@@ -346,6 +508,27 @@ function love.update(dt)
         nextPresenceUpdate = 0
     end
 
+    local roomID = online_connect.getRoomID()
+    local hasRoomID = type(roomID) == "string" and roomID ~= ""
+
+    if hasRoomID then
+        presence.partyId = roomID
+        presence.joinSecret = discordJoinSecretPrefix .. roomID
+        presence.partySize = online_connect.isConnected()
+            and online_connect.getPartyCount()
+            or 1
+        presence.partyMax = 4
+        presence.instance = 1
+
+        log.debug("Discord RPC: online party", "room=" .. roomID, "size=" .. tostring(presence.partySize) .. "/4", "instance=1")
+    else
+        presence.partyId = nil
+        presence.joinSecret = nil
+        presence.partySize = 1
+        presence.partyMax = 1
+        presence.instance = 0
+    end
+
     if discordEnabled then
         local now = love.timer.getTime()
         if nextPresenceUpdate < now then
@@ -353,6 +536,16 @@ function love.update(dt)
             nextPresenceUpdate = now + 2.0
         end
         discordRPC.runCallbacks()
+    end
+
+    local pendingJoinSecret = main.pendingDiscordJoinSecret
+    if pendingJoinSecret then
+        main.pendingDiscordJoinSecret = nil
+        onlineMode = true
+        changeProgram(9)
+        if online_room and online_room.joinWithRoomID then
+            online_room.joinWithRoomID(pendingJoinSecret)
+        end
     end
 
     if lovebird then
@@ -382,6 +575,8 @@ function love.update(dt)
         changeProgram(6)
     elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 3 then--設定
         changeProgram(5)
+    elseif programnumber == 2 and gamemodeselect.endprocess and gamemodeselect.selectedmode == 4 then--オンライン
+        changeProgram(9)
     elseif programnumber == 6 and story.endprocess then--ストーリーセレクターから戻る
         changeProgram(2)
     elseif programnumber ==3 and musicselect.endprocess and musicselect.selectmode == 1 then
@@ -430,6 +625,10 @@ function love.update(dt)
         gamestatus = "Musicselect"
     elseif program == result then
         gamestatus = "Result"
+    elseif program == play then
+        gamestatus = "Play"
+    elseif program == online or program == online_room or program == online_musicselect or program == online_play or program == online_result then
+        gamestatus = "Online"
     end
 
 
@@ -441,8 +640,17 @@ function love.update(dt)
     end
 
     userbadge.update(dt)
-    
-        love.mouse.setVisible(true)
+    love.mouse.setVisible(true)
+
+
+
+    --DiscordRPCのゲームIDの変更
+    if program == online or program == online_room or program == online_musicselect or program == online_play or program == online_result then
+        presence.details = "オンラインプレイ中"
+        presence.partyMax = 4
+        presence.partySize = online_connect.getPartyCount()
+    end
+
 end
 
 
@@ -453,6 +661,16 @@ love.mousepressed = function(x, y, button, istouch, presses)
 
     if program.mousepressed then
         program.mousepressed(x, y, button, istouch, presses)
+    end
+end
+
+function love.mousemoved(x, y, dx, dy, istouch)
+    if console and console.active then
+        return
+    end
+
+    if program and program.mousemoved then
+        program.mousemoved(x, y, dx, dy, istouch)
     end
 end
 

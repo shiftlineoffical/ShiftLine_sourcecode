@@ -274,6 +274,7 @@ local musictimer=0
 
 local finished = false
 local resultTransitioned = false
+local resultTransitionHandler = nil
 
 local paused = false
 local resumeTimer = 0
@@ -2863,6 +2864,14 @@ function play.getCollections()
     return collections
 end
 
+function play.getCombo()
+    return math.max(0, math.floor(tonumber(combo) or 0))
+end
+
+function play.getMaxCombo()
+    return math.max(0, math.floor(tonumber(maxCombo) or 0))
+end
+
 
 
 
@@ -3167,7 +3176,15 @@ local function transitionToResult()
     updateLongHoldJudgements(finalJudgeTime)
     updateMissJudgements(finalJudgeTime)
     publishResultData()
-    changeProgram(7)
+    if type(resultTransitionHandler) == "function" then
+        resultTransitionHandler()
+    else
+        changeProgram(7)
+    end
+end
+
+function play.setResultTransitionHandler(handler)
+    resultTransitionHandler = type(handler) == "function" and handler or nil
 end
 
 function musicdatadraw()

@@ -12,11 +12,13 @@ local soloPoly
 local storyPoly
 local settingPoly
 local titlePoly
+local onlinePoly
 
 local soloButton
 local storyButton
 local settingButton
 local titleButton
+local onlineButton
 
 local fadeAlpha = 0
 local fading = false
@@ -125,30 +127,38 @@ local function rebuildButtons()
         displayWidth / 20,
         displayWidth / 2,
         displayHeight / 20,
-        displayHeight / 10 * 9.5,
+        displayHeight / 2 - displayHeight / 40,
         "Solo"
+    )
+
+    onlineButton = buildButton(
+        displayWidth / 20,
+        displayWidth / 2,
+        displayHeight / 2 + displayHeight / 40,
+        displayHeight / 10 * 9.5,
+        "Online"
     )
 
     storyButton = buildButton(
         displayWidth / 2 + displayWidth / 40,
         displayWidth,
         displayHeight / 20,
-        displayHeight / 40 * 19,
+        displayHeight / 3 - displayHeight / 40,
         "Story"
     )
 
     settingButton = buildButton(
         displayWidth / 2,
         displayWidth / 4 * 3,
-        displayHeight / 2,
-        displayHeight / 10 * 9.5,
+        displayHeight / 3 + displayHeight / 40,
+        displayHeight / 3 * 2 - displayHeight / 40,
         "Settings"
     )
 
     titleButton = buildButton(
         displayWidth / 4 * 3 + displayWidth / 40,
         displayWidth - displayWidth / 40,
-        displayHeight / 2,
+        displayHeight / 3 * 2 + displayHeight / 40,
         displayHeight / 10 * 9.5,
         "Title"
     )
@@ -157,6 +167,7 @@ local function rebuildButtons()
     storyPoly = storyButton.poly
     settingPoly = settingButton.poly
     titlePoly = titleButton.poly
+    onlinePoly = onlineButton.poly
 end
 
 local function updateLayout(force)
@@ -274,6 +285,13 @@ if settingPoly and pointInPolygon(x, y, settingPoly) then
     return
 end
 
+if onlinePoly and pointInPolygon(x, y, onlinePoly) then
+    gamemodeselect.selectedmode = 4
+    fading = true
+    log.info("Go to Online mode")
+    return
+end
+
 
     if titlePoly and pointInPolygon(x, y, titlePoly) then
         gamemodeselect.selectedmode = 0
@@ -290,6 +308,7 @@ function gamemodeselect.draw()
     love.graphics.setFont(originalfont)
     local mx, my = love.mouse.getPosition()
     drawParallelogram(soloButton, mx, my, originalfont)
+    drawParallelogram(onlineButton, mx, my, originalfont)
     drawParallelogram(storyButton, mx, my, originalfont)
     drawParallelogram(settingButton, mx, my, originalfont)
     drawParallelogram(titleButton, mx, my, originalfont)
