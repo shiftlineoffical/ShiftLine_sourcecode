@@ -7,9 +7,6 @@ scratchsfl.basePath = {}
 
 local log = require("log")
 
--- ゲーム内に同梱された楽曲ディレクトリ
-local SONGS_DIR = "lib/data/Songs"
-
 local function listDir(path)
     local ok, items = pcall(love.filesystem.getDirectoryItems, path)
 
@@ -31,56 +28,49 @@ local function isDirectory(path)
 end
 
 function scratchsfl.load()
+    local basePaths = {
+        "lib/data/Songs",
+        "Songs"
+    }
+
     local sflfoldname = {}
     local sflpath = {}
     local basePath = {}
 
-    log.info("scratchsfl: scanning lib/data/Songs")
+    log.info(
+        "scratchsfl: scanning basePaths: " ..
+        table.concat(basePaths, ", ")
+    )
 
-    -- 楽曲フォルダがなければ作成
-    if not isDirectory(SONGS_DIR) then
-        local ok, err = pcall(love.filesystem.createDirectory, SONGS_DIR)
+    for _, base in ipairs(basePaths) do
+        local entries = listDir(base)
 
-        if not ok then
-            log.error(
-                "scratchsfl: failed to create lib/data/Songs directory: " ..
-                tostring(err)
-            )
-            return
-        end
+        for _, foldName in ipairs(entries) do
+            local songPath = base .. "/" .. foldName
 
-        log.info("scratchsfl: created Songs directory")
-    end
+            if isDirectory(songPath) then
+                local items = listDir(songPath)
+                local chartPath = nil
 
-    -- lib/data/Songs/* を検索
-    local entries = listDir(SONGS_DIR)
-
-    for _, foldName in ipairs(entries) do
-        local songPath = SONGS_DIR .. "/" .. foldName
-
-        if isDirectory(songPath) then
-            local items = listDir(songPath)
-            local chartPath = nil
-
-            -- フォルダ内のSFLを探す
-            for _, fileName in ipairs(items) do
-                if fileName:lower():match("%.sfl$") then
-                    chartPath = songPath .. "/" .. fileName
-                    break
+                for _, fileName in ipairs(items) do
+                    if fileName:lower():match("%.sfl$") then
+                        chartPath = songPath .. "/" .. fileName
+                        break
+                    end
                 end
-            end
 
-            if chartPath then
-                sflfoldname[#sflfoldname + 1] = foldName
-                sflpath[#sflpath + 1] = chartPath
-                basePath[#basePath + 1] = SONGS_DIR
+                if chartPath then
+                    sflfoldname[#sflfoldname + 1] = foldName
+                    sflpath[#sflpath + 1] = chartPath
+                    basePath[#basePath + 1] = base
 
-                log.info(
-                    "scratchsfl: found song: " ..
-                    foldName ..
-                    " -> " ..
-                    chartPath
-                )
+                    log.info(
+                        "scratchsfl: found song: " ..
+                        foldName ..
+                        " -> " ..
+                        chartPath
+                    )
+                end
             end
         end
     end
