@@ -6,6 +6,7 @@ local online_connect = require("online_connect")
 local comboByPlayer = {}
 local playerID = nil
 local sendTimer = 0
+local lastSentCombo = nil
 local comboFont = nil
 local labelFont = nil
 
@@ -14,6 +15,7 @@ local function resetComboState()
     playerID = online_connect.getPlayerID() or "local"
     comboByPlayer[playerID] = 0
     sendTimer = 0
+    lastSentCombo = nil
 end
 
 local function getTeamCombo()
@@ -68,17 +70,23 @@ function online_play.update(dt)
 
     local currentPlayerID = playerID or "local"
     local currentCombo = 0
+
     if play and type(play.getCombo) == "function" then
         local ok, value = pcall(play.getCombo)
         if ok then
             currentCombo = tonumber(value) or 0
         end
     end
-    comboByPlayer[currentPlayerID] = math.max(0, math.floor(currentCombo))
+
+    currentCombo = math.max(0, math.floor(currentCombo))
+    comboByPlayer[currentPlayerID] = currentCombo
+
     sendTimer = sendTimer + (dt or 0)
-    if sendTimer >= 0.1 then
+
+    if currentCombo ~= lastSentCombo and sendTimer >= 0.05 then
         sendTimer = 0
-        online_connect.send("ONLINE_COMBO", currentPlayerID, comboByPlayer[currentPlayerID])
+        lastSentCombo = currentCombo
+        online_connect.send("ONLINE_COMBO", currentPlayerID, currentCombo)
     end
 end
 
@@ -91,14 +99,17 @@ function online_play.draw()
     local labelText = "TEAM COMBO"
     local currentFont = comboFont or love.graphics.getFont()
     local currentLabelFont = labelFont or love.graphics.getFont()
+
     love.graphics.setFont(currentFont)
     local centerX = width * 0.5
     local centerY = height * 0.5
     love.graphics.setColor(0.45, 0.95, 0.9, 0.95)
     love.graphics.print(comboText, centerX - currentFont:getWidth(comboText) * 0.5, centerY - 112)
+
     love.graphics.setFont(currentLabelFont)
     love.graphics.setColor(0.55, 0.9, 0.86, 0.85)
     love.graphics.print(labelText, centerX - currentLabelFont:getWidth(labelText) * 0.5, centerY - 70)
+
     love.graphics.setColor(1, 1, 1, 1)
 end
 
