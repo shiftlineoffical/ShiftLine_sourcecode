@@ -1,4 +1,4 @@
-﻿--[[
+--[[
 変数表
 play:play.luaの内容
 dotfont:ドットフォント
@@ -637,9 +637,16 @@ function love.update(dt)
     if program.update then
         program.update(dt)
     end
+if programnumber ~= 9
+    and programnumber ~= 10
+    and programnumber ~= 11
+    and programnumber ~= 12 then
 
     userbadge.update(dt)
-    love.mouse.setVisible(true)
+end
+
+love.mouse.setVisible(true)
+
 
 
 
@@ -705,9 +712,17 @@ function love.draw()
         program.draw()
     end
 
-    if programnumber ~= 0 and programnumber ~= 4 then
-        userbadge.draw()
-    end
+    if programnumber ~= 0
+    and programnumber ~= 4
+    and programnumber ~= 9
+    and programnumber ~= 10
+    and programnumber ~= 11
+    and programnumber ~= 12 then
+
+    userbadge.draw()
+end
+
+
 
     if program.drawOverlay then
         program.drawOverlay()
@@ -816,6 +831,19 @@ function love.keypressed(key, scancode, isrepeat)
         end
         return
     end
+	
+
+    if key == "f11" then
+        local fullscreen = love.window.getFullscreen()
+
+        if fullscreen then
+            love.window.setFullscreen(false)
+            love.window.setMode(1280, 720)
+        else
+            love.window.setFullscreen(true, "desktop")
+        end
+    end
+
 
     if key == "f1" and programnumber == 8 then
         if program.keypressed then
