@@ -3,18 +3,11 @@
     -- アプリ基本情報
     t.identity = "ShiftLine"
     t.version = "11.5"
-    t.console = true
+    t.console = false
 
     -- ウィンドウ設定（display）
-    t.window.title = "ShiftLine - ver0.3.5"
-    t.window.width = 1920
-    t.window.height = 1080
-    t.window.fullscreen = true
-    t.window.fullscreentype = "desktop"
+    t.window.title = "ShiftLine"
     t.window.vsync = 1
-    t.window.resizable = true
-    t.window.minwidth = 1920
-    t.window.minheight = 1080
     -- モジュールの有効化（modules）
     t.modules.audio = true
     t.modules.event = true

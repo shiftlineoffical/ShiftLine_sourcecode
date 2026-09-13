@@ -291,6 +291,10 @@ function sink.chain(f, snk, ...)
     end
 end
 
+-----------------------------------------------------------------------------
+-- Pump stuff
+-----------------------------------------------------------------------------
+-- pumps one chunk from the source to the sink
 function pump.step(src, snk)
     local chunk, src_err = src()
     local ret, snk_err = snk(chunk, src_err)
@@ -298,6 +302,7 @@ function pump.step(src, snk)
     else return nil, src_err or snk_err end
 end
 
+-- pumps all data from a source to a sink, using a step function
 function pump.all(src, snk, step)
     base.assert(src and snk)
     step = step or pump.step
