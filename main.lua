@@ -1,4 +1,4 @@
---[[
+﻿--[[
 変数表
 play:play.luaの内容
 dotfont:ドットフォント
@@ -246,131 +246,171 @@ local function registerDiscordLauncherProtocol()
         return false
     end
 
+    local osName = love.system.getOS()
+
+    if osName ~= "Windows" and osName ~= "OS X" then
+        return false
+    end
+
     local source = love.filesystem.getSource()
+
     if type(source) ~= "string" or source == "" then
+        log.warn("Discord RPC: LÖVE source could not be determined")
         return false
     end
 
     source = source:gsub("[/\\]+$", "")
-    log.info("Discord RPC: LÖVE source", source)
-    local sourceFile = io.open(source, "rb")
-    if sourceFile then
-        sourceFile:close()
-        source = source:match("^(.*)[/\\][^/\\]+$")
-    end
 
-    local sourceParent = source and source:match("^(.*)[/\\][^/\\]+$")
-    if not sourceParent then
-        log.warn("Discord RPC: launcher directory could not be determined")
-        return false
-    end
+    log.info("Discord RPC: LÖVE source = " .. source)
 
-    local osName = love.system.getOS()
     local launcherPath
+
     if osName == "Windows" then
-        local candidates = {
-            sourceParent .. "/ShiftLineLauncher.exe",
-            sourceParent .. "/ShiftLineLauncher/ShiftLineLauncher.exe"
-        }
-        for _, candidate in ipairs(candidates) do
-            local candidateFile = io.open(candidate, "rb")
-            if candidateFile then
-                candidateFile:close()
-                launcherPath = candidate
-                break
-            end
+
+        -- ShiftLineLauncher.exe の場所
+        if source:lower():match("%.exe$") then
+            launcherPath = source
+        else
+            launcherPath = source .. "/ShiftLineLauncher.exe"
         end
+
     elseif osName == "OS X" then
-        local candidates = {
-            sourceParent .. "/ShiftLineLauncher.app",
-            sourceParent .. "/ShiftLineLauncher/ShiftLineLauncher.app"
-        }
-        for _, candidate in ipairs(candidates) do
-            local candidateInfo = io.open(candidate .. "/Contents/Info.plist", "rb")
-            if candidateInfo then
-                candidateInfo:close()
-                launcherPath = candidate
-                break
-            end
+
+        -- ShiftLineLauncher.app の場所
+        if source:lower():match("%.app$") then
+            launcherPath = source
+        else
+            launcherPath = source .. "/ShiftLineLauncher.app"
         end
-    else
-        return false
     end
 
     if not launcherPath then
-        log.warn("Discord RPC: launcher executable not found", sourceParent)
         return false
     end
 
-    local launcherFile = io.open(launcherPath, "rb")
-    local launcherExists = launcherFile ~= nil
-    if launcherFile then
-        launcherFile:close()
-    end
-    if not launcherExists and osName == "OS X" then
-        local infoPlist = launcherPath .. "/Contents/Info.plist"
-        launcherFile = io.open(infoPlist, "rb")
-        launcherExists = launcherFile ~= nil
-        if launcherFile then
-            launcherFile:close()
-        end
-    end
-    if not launcherExists then
-        log.warn("Discord RPC: launcher executable not found", launcherPath)
+    log.info("Discord RPC: launcher path = " .. launcherPath)
+
+    -- io.open は使用しない
+    local info = love.filesystem.getInfo(launcherPath)
+
+    if not info then
+        log.warn(
+            "Discord RPC: launcher not found: " ..
+            launcherPath
+        )
         return false
     end
 
     local scheme = "discord-" .. appId
+
     local function quote(value)
         return '"' .. value:gsub('"', '\\"') .. '"'
     end
 
+
     if osName == "OS X" then
+
         local result = os.execute(
-            "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f " ..
+            "/System/Library/Frameworks/CoreServices.framework/" ..
+            "Frameworks/LaunchServices.framework/Support/lsregister " ..
+            "-f " ..
             quote(launcherPath)
         )
+
         if result ~= true and result ~= 0 then
-            log.warn("Discord RPC: macOS launcher registration failed", tostring(result))
+            log.warn(
+                "Discord RPC: macOS launcher registration failed: " ..
+                tostring(result)
+            )
             return false
         end
 
-        log.info("Discord RPC: macOS launcher detected", scheme, launcherPath)
+        log.info(
+            "Discord RPC: macOS launcher registered: " ..
+            launcherPath
+        )
+
         return true
     end
 
-    local command = quote(launcherPath) .. " \"%1\""
-    log.info("Discord RPC: Windows launcher command", command)
+
+    local key =
+        "HKCU\\Software\\Classes\\" .. scheme
+
+    local command =
+        quote(launcherPath) .. ' "%1"'
+
+    log.info(
+        "Discord RPC: Windows launcher command = " ..
+        command
+    )
+
+
+    -- URL Protocol
     local result = os.execute(
-        "reg add " .. quote("HKCU\\Software\\Classes\\" .. scheme) ..
-        " /ve /t REG_SZ /d " .. quote("URL:" .. scheme) .. " /f"
+        "reg add " ..
+        quote(key) ..
+        " /ve /t REG_SZ /d " ..
+        quote("URL:" .. scheme) ..
+        " /f"
     )
+
     if result ~= true and result ~= 0 then
-        log.warn("Discord RPC: protocol registration failed", tostring(result))
+        log.warn(
+            "Discord RPC: protocol registration failed: " ..
+            tostring(result)
+        )
         return false
     end
 
+
+    -- URL Protocol フラグ
     result = os.execute(
-        "reg add " .. quote("HKCU\\Software\\Classes\\" .. scheme) ..
-        " /v \"URL Protocol\" /t REG_SZ /d \"\" /f"
+        "reg add " ..
+        quote(key) ..
+        ' /v "URL Protocol" /t REG_SZ /d "" /f'
     )
+
     if result ~= true and result ~= 0 then
-        log.warn("Discord RPC: protocol metadata registration failed", tostring(result))
+        log.warn(
+            "Discord RPC: protocol metadata registration failed: " ..
+            tostring(result)
+        )
         return false
     end
 
+
+    -- 起動コマンド
     result = os.execute(
-        "reg add " .. quote("HKCU\\Software\\Classes\\" .. scheme .. "\\shell\\open\\command") ..
-        " /ve /t REG_SZ /d " .. quote(command) .. " /f"
+        "reg add " ..
+        quote(key .. "\\shell\\open\\command") ..
+        " /ve /t REG_SZ /d " ..
+        quote(command) ..
+        " /f"
     )
+
     if result ~= true and result ~= 0 then
-        log.warn("Discord RPC: launcher command registration failed", tostring(result))
+        log.warn(
+            "Discord RPC: launcher command registration failed: " ..
+            tostring(result)
+        )
         return false
     end
 
-    log.info("Discord RPC: launcher protocol registered", scheme, launcherPath)
+
+    log.info(
+        "Discord RPC: Windows launcher protocol registered: " ..
+        scheme
+    )
+
+    log.info(
+        "Discord RPC: launcher = " ..
+        launcherPath
+    )
+
     return true
 end
+
 
 function setDiscordJoinSecret(joinSecret)
     if type(joinSecret) ~= "string" then
@@ -838,7 +878,6 @@ function love.keypressed(key, scancode, isrepeat)
 
         if fullscreen then
             love.window.setFullscreen(false)
-            love.window.setMode(1280, 720)
         else
             love.window.setFullscreen(true, "desktop")
         end
