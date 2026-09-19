@@ -1,0 +1,10 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Audacity
+*.aup
+*.aup3
+
+# Media player / analysis cache
+*.lwi

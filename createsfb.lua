@@ -882,11 +882,15 @@ function createsfb.load(opts)
         return nil
     end
 
+    local audioCount = type(loadedCollections) == "table" and type(loadedCollections.audio) == "table" and #(loadedCollections.audio) or 0
+    local chartCount = type(loadedCollections) == "table" and type(loadedCollections.charts) == "table" and #(loadedCollections.charts) or 0
+    local imageCount = type(loadedCollections) == "table" and type(loadedCollections.images) == "table" and #(loadedCollections.images) or 0
+
     log.info(string.format(
         "createsfb.load(): direct collections audio=%d charts=%d images=%d",
-        #(loadedCollections.audio or {}),
-        #(loadedCollections.charts or {}),
-        #(loadedCollections.images or {})
+        audioCount,
+        chartCount,
+        imageCount
     ))
 
     log.info("createsfb.load() completed (direct mode)")
@@ -941,7 +945,7 @@ function loadsflfile()
 
     for i = 1,#sflpath do
 
-        local data = readFile(sflpath[i])
+        local data = readFile(sflpath[i]) or ""
 
         sflmeta[i] = {}
         sfldiff[i] = {}
@@ -1175,8 +1179,8 @@ end
 
 -- 繝ｫ繝ｼ繝怜・縺ｧ螳牙・縺ｫ螳溯｡後〒縺阪ｋ繧医≧縺ｫ縲∬ｧ｣譫仙・逅・ｒ縲後う繝ｳ繝・ャ繧ｯ繧ｹ i縲阪↓蟇ｾ蠢懊＆縺帙∪縺・
 function loadsflfile_indexed(i)
-    local data = readFile(sflpath[i])
-    if not data then return end
+    local data = readFile(sflpath[i]) or ""
+    if data == "" then return end
 
     sflmeta[i] = {}
     sfldiff[i] = {}
@@ -1535,6 +1539,20 @@ function createchartbin(i)
         if diffText then
             measureTimeline[diff] = buildMeasureTiming(diffText, bpm)
             actionsByDiff[diff] = parseActionEvents(diffText, measureTimeline[diff])
+        else
+            -- diffTextが存在しない場合、デフォルトのmeasureTimelineを生成
+            measureTimeline[diff] = {}
+            local defaultBpm = bpm or (sflmeta[i] and tonumber(sflmeta[i].bpm)) or 120
+            local defaultMeasureSec = 240 / defaultBpm -- 4/4の時間
+            for measureIdx = 1, 1000 do
+                measureTimeline[diff][measureIdx] = {
+                    start = (measureIdx - 1) * defaultMeasureSec,
+                    duration = defaultMeasureSec,
+                    bpm = defaultBpm,
+                    measure = {4, 4}
+                }
+            end
+            actionsByDiff[diff] = {}
         end
 
         local data = notedata[diff][i]
@@ -1547,8 +1565,14 @@ function createchartbin(i)
                 local m = measureTimeline[diff] and measureTimeline[diff][note.measure]
                 if m then
                     sec = (m.start or 0) + (note.pos or 0) * (m.duration or 0)
-                elseif measuretime[diff] and measuretime[diff][i] then
-                    sec = (note.measure-1) * measuretime[diff][i] + (note.pos or 0) * measuretime[diff][i]
+                else
+                    -- measureTimelineにmeasureIndexが存在しない場合の警告
+                    if measuretime[diff] and measuretime[diff][i] then
+                        log.warn("Using fallback measuretime for measure calculation")
+                        sec = (note.measure-1) * measuretime[diff][i] + (note.pos or 0) * measuretime[diff][i]
+                    else
+                        log.warn("Measure index " .. tostring(note.measure) .. " not found in measureTimeline for diff=" .. diff)
+                    end
                 end
 
                 laneTiming[diff][lane] = laneTiming[diff][lane] or {}

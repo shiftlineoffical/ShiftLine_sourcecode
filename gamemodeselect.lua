@@ -12,15 +12,71 @@ local soloPoly
 local storyPoly
 local settingPoly
 local titlePoly
+local onlinePoly
 
 local soloButton
 local storyButton
 local settingButton
 local titleButton
+local onlineButton
 
 local fadeAlpha = 0
 local fading = false
 local fadeSpeed = 1.5
+local backgroundVideo = nil
+
+local function updateBackgroundVideo()
+    if not backgroundVideo then
+        return
+    end
+
+    local okPlaying, playing = pcall(function()
+        return backgroundVideo:isPlaying()
+    end)
+
+    if not okPlaying then
+        return
+    end
+
+    if not playing then
+        pcall(function()
+            backgroundVideo:rewind()
+            backgroundVideo:play()
+        end)
+    end
+end
+
+local function drawBackgroundVideo()
+    if not backgroundVideo then
+        love.graphics.setColor(0.08, 0.08, 0.1, 1)
+        love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
+        love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    local okSize, videoW, videoH = pcall(function()
+        return backgroundVideo:getWidth(), backgroundVideo:getHeight()
+    end)
+
+    if not okSize or videoW <= 0 or videoH <= 0 then
+        love.graphics.setColor(0.08, 0.08, 0.1, 1)
+        love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
+        love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    local scale = math.max(displayWidth / videoW, displayHeight / videoH)
+    local drawW = videoW * scale
+    local drawH = videoH * scale
+    local drawX = (displayWidth - drawW) / 2
+    local drawY = (displayHeight - drawH) / 2
+
+    love.graphics.setColor(1, 1, 1, 0.5)
+    love.graphics.draw(backgroundVideo, drawX, drawY, 0, scale, scale)
+    love.graphics.setColor(0.05, 0.05, 0.06, 0.42)
+    love.graphics.rectangle("fill", 0, 0, displayWidth, displayHeight)
+    love.graphics.setColor(1, 1, 1, 1)
+end
 
 function pointInPolygon(x, y, poly)
     local inside = false
@@ -71,30 +127,38 @@ local function rebuildButtons()
         displayWidth / 20,
         displayWidth / 2,
         displayHeight / 20,
-        displayHeight / 10 * 9.5,
+        displayHeight / 2 - displayHeight / 40,
         "Solo"
+    )
+
+    onlineButton = buildButton(
+        displayWidth / 20,
+        displayWidth / 2,
+        displayHeight / 2 + displayHeight / 40,
+        displayHeight / 10 * 9.5,
+        "Online"
     )
 
     storyButton = buildButton(
         displayWidth / 2 + displayWidth / 40,
         displayWidth,
         displayHeight / 20,
-        displayHeight / 40 * 19,
+        displayHeight / 3 - displayHeight / 40,
         "Story"
     )
 
     settingButton = buildButton(
         displayWidth / 2,
         displayWidth / 4 * 3,
-        displayHeight / 2,
-        displayHeight / 10 * 9.5,
+        displayHeight / 3 + displayHeight / 40,
+        displayHeight / 3 * 2 - displayHeight / 40,
         "Settings"
     )
 
     titleButton = buildButton(
         displayWidth / 4 * 3 + displayWidth / 40,
         displayWidth - displayWidth / 40,
-        displayHeight / 2,
+        displayHeight / 3 * 2 + displayHeight / 40,
         displayHeight / 10 * 9.5,
         "Title"
     )
@@ -103,6 +167,7 @@ local function rebuildButtons()
     storyPoly = storyButton.poly
     settingPoly = settingButton.poly
     titlePoly = titleButton.poly
+    onlinePoly = onlineButton.poly
 end
 
 local function updateLayout(force)
@@ -143,6 +208,28 @@ function gamemodeselect.load()
     fadeAlpha = 0
     fading = false
 
+    backgroundVideo = nil
+    if love.graphics.newVideoStream then
+        local okStream, stream = pcall(love.graphics.newVideoStream, "img/OP.ogv")
+        if okStream and stream then
+            local okVideo, video = pcall(love.graphics.newVideo, stream)
+            if okVideo and video then
+                backgroundVideo = video
+            end
+        end
+    elseif love.graphics.newVideo then
+        local okVideo, video = pcall(love.graphics.newVideo, "img/OP.ogv")
+        if okVideo and video then
+            backgroundVideo = video
+        end
+    end
+
+    if backgroundVideo then
+        pcall(function()
+            backgroundVideo:play()
+        end)
+    end
+
     print("Loaded Game Mode Selection screen")
 
     local baseSize = math.max(28, math.floor(displayHeight * 0.08))
@@ -159,6 +246,8 @@ function gamemodeselect.load()
 end
 
 function gamemodeselect.update(dt)
+    updateBackgroundVideo()
+
     if fading then
         fadeAlpha = fadeAlpha + fadeSpeed * dt
 
@@ -182,27 +271,27 @@ function gamemodeselect.mousepressed(x, y, button)
         return
     end
 
-    if storyPoly and pointInPolygon(x, y, storyPoly) then
-        if not (gamejolt.status and gamejolt.status.authenticated and gamejolt.status.username == "cloudoamp") then
-            log.warn("Story access denied: GameJolt login required as cloudoamp")
-            return
-        end
-        gamemodeselect.selectedmode = 2
-        fading = true
-        log.info("Go to Story mode")
-        return
-    end
+if storyPoly and pointInPolygon(x, y, storyPoly) then
+    gamemodeselect.selectedmode = 2
+    fading = true
+    log.info("Go to Story mode")
+    return
+end
 
-    if settingPoly and pointInPolygon(x, y, settingPoly) then
-        if not (gamejolt.status and gamejolt.status.authenticated and gamejolt.status.username == "cloudoamp") then
-            log.warn("Settings access denied: GameJolt login required as cloudoamp")
-            return
-        end
-        gamemodeselect.selectedmode = 3
-        fading = true
-        log.info("Go to Settings")
-        return
-    end
+if settingPoly and pointInPolygon(x, y, settingPoly) then
+    gamemodeselect.selectedmode = 3
+    fading = true
+    log.info("Go to Settings")
+    return
+end
+
+if onlinePoly and pointInPolygon(x, y, onlinePoly) then
+    gamemodeselect.selectedmode = 4
+    fading = true
+    log.info("Go to Online mode")
+    return
+end
+
 
     if titlePoly and pointInPolygon(x, y, titlePoly) then
         gamemodeselect.selectedmode = 0
@@ -214,10 +303,12 @@ end
 
 function gamemodeselect.draw()
     updateLayout(false)
+    drawBackgroundVideo()
 
     love.graphics.setFont(originalfont)
     local mx, my = love.mouse.getPosition()
     drawParallelogram(soloButton, mx, my, originalfont)
+    drawParallelogram(onlineButton, mx, my, originalfont)
     drawParallelogram(storyButton, mx, my, originalfont)
     drawParallelogram(settingButton, mx, my, originalfont)
     drawParallelogram(titleButton, mx, my, originalfont)

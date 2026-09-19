@@ -1,5 +1,10 @@
 local storyplayer = {}
-local displayWidth, displayHeight = love.graphics.getDimensions()
+local displayWidth, displayHeight
+if love and love.graphics and type(love.graphics.getDimensions) == "function" then
+    displayWidth, displayHeight = love.graphics.getDimensions()
+else
+    displayWidth, displayHeight = 800, 600
+end
 local font = nil
 local smallFont = nil
 local active = false
@@ -23,6 +28,7 @@ local scriptLanguageData = {}
 local scriptObjects = {}
 local scriptSprites = {}
 local scriptSource = nil
+local completeStory
 
 local log = require "log"
 local i18n = require "i18n"
@@ -33,6 +39,12 @@ local function initFonts()
     end
     if not smallFont then
         smallFont = love.graphics.newFont("lib/data/fonts/NotoSansJP-Light.ttf", math.max(18, math.floor(displayHeight * 0.035)))
+    end
+end
+
+local function setFontIfAvailable(fontValue)
+    if fontValue then
+        love.graphics.setFont(fontValue)
     end
 end
 
@@ -146,6 +158,7 @@ local function resumeScript()
         return
     end
 
+    -- If resumed without a known yield reason, continue running until next explicit yield or completion.
     resumeScript()
 end
 
@@ -251,7 +264,7 @@ local function createScriptEnvironment()
                 end
             end,
             getLastResult = function()
-                return _G.lastResult
+                return rawget(_G, "lastResult")
             end,
             sprite = {
                 load = function(path)
@@ -342,7 +355,7 @@ local function loadBackgroundImage()
     end
 end
 
-local function completeStory()
+completeStory = function()
     active = false
     if finishCallback then
         finishCallback()
@@ -510,6 +523,10 @@ end
 local function drawStoryLine()
     local visible = visibleText()
 
+    -- 対応フォーマット:
+    -- 1) 名前>>セリフ  (例: ルナ>>おはよう)
+    -- 2) >>セリフ      (名前なしの会話)
+    -- 3) 名前「セリフ」(旧形式)
     local arrowName, arrowText = currentLineText:match("^(.-)>>%s*(.*)$")
     local charName, dialogue
     if arrowText and arrowText ~= "" then
@@ -524,6 +541,7 @@ local function drawStoryLine()
         charName, dialogue = currentLineText:match("^(.-)「(.*)」$")
     end
 
+    -- "ナレーション" ラベルの場合は会話扱いにしない
     if charName then
         local nameTrim = charName:match("^%s*(.-)%s*$") or ""
         local isNarrationLabel = (nameTrim == "ナレーション" or nameTrim == "Narration" or nameTrim == "narration")
@@ -542,12 +560,12 @@ local function drawStoryLine()
         drawTextFrame(x, y, w, boxHeight)
 
         if charName then
-            love.graphics.setFont(font)
+            setFontIfAvailable(font)
             love.graphics.setColor(0.8, 0.95, 1)
             love.graphics.printf(charName, x + 28, y + 22, w - 56, "left")
         end
 
-        love.graphics.setFont(smallFont)
+        setFontIfAvailable(smallFont)
         love.graphics.setColor(1, 1, 1)
         love.graphics.printf(visibleDialogue, x + 28, y + 58, w - 56, "left")
 
@@ -560,11 +578,11 @@ local function drawStoryLine()
         local w = displayWidth - 120
         drawTextFrame(x, y, w, boxHeight)
 
-        love.graphics.setFont(font)
+        setFontIfAvailable(font)
         love.graphics.setColor(1, 1, 0.95)
         love.graphics.printf(visible, x + 30, y + 24, w - 60, "left")
 
-        love.graphics.setFont(smallFont)
+        setFontIfAvailable(smallFont)
         love.graphics.setColor(0.75, 0.75, 0.85)
         love.graphics.printf("Press Space/Enter to continue", x + 30, y + boxHeight - 34, w - 60, "right")
     end
@@ -576,11 +594,17 @@ function storyplayer.draw()
     end
 
     updateLayout()
+    initFonts()
+    if not storyData then
+        completeStory()
+        return
+    end
     drawBackground()
 
-    love.graphics.setFont(smallFont)
+    setFontIfAvailable(smallFont)
     love.graphics.setColor(0.85, 0.85, 0.85)
-    love.graphics.printf(storyData.metadata.title or "Story", 40, 30, displayWidth - 80, "left")
+    local metadata = storyData.metadata or {}
+    love.graphics.printf(metadata.title or "Story", 40, 30, displayWidth - 80, "left")
 
     local totalLines = storyData.lines and #storyData.lines or 0
     local lineLabel = storyData.scriptSource and "Script" or string.format("%d / %d", currentLineIndex, totalLines)
