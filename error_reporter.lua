@@ -1,11 +1,13 @@
 -- JSON.lua
 local json_ok, json = pcall(require, "JSON")
+local http_ok, http = pcall(require, "socket.http")
+local ltn12_ok, ltn12 = pcall(require, "ltn12")
 
 local M = {}
 
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1536300603871985765/jYQJI1EMBn4VjuX_aWaFunFnCHNI5yuUjL4-RcSWAcD_uoJJ3y0VNZ9FmyPUSsNogZRS"
+local WEBHOOK_URL = os.getenv("SHIFTLINE_WEBHOOK_URL") or ""
 local ERROR_FILE = "last_error.json"
-local MENTION_USER_ID = "1420740980457472000"
+local MENTION_USER_ID = os.getenv("SHIFTLINE_WEBHOOK_MENTION_ID") or ""
 
 local function sendUDP(data)
     return false
@@ -43,13 +45,14 @@ local function buildDiscordPayload(payload)
     local version = tostring(payload.version or "unknown")
     local timeText = tostring(payload.time or os.date("%Y-%m-%d %H:%M:%S"))
 
+    local mention = MENTION_USER_ID ~= "" and ("<@" .. MENTION_USER_ID .. ">\n") or ""
     return {
         username = "ShiftLineクラッシュお知らせくん",
         allowed_mentions = {
             parse = { "users" }
         },
         content =
-            "<@" .. MENTION_USER_ID .. ">\n" ..
+            mention ..
             "# クラッシュデータ\n" ..
             "## ID: `" .. tostring(payload.crash_id or "unknown") .. "`\n" ..
             "## OS: `" .. osName .. "`\n" ..
@@ -69,18 +72,22 @@ local function sendHTTP(jsonData)
         return false
     end
 
-    local curl = os.getenv("CURL") or "curl.exe"
-    local cmd = string.format('%s -sS -X POST -H "Content-Type: application/json" --data-binary @- "%s"', curl, WEBHOOK_URL)
-    local pipe = io.popen(cmd, "w")
-
-    if not pipe then
+    if not http_ok or not ltn12_ok or not http or not ltn12 then
         return false
     end
 
-    pipe:write(jsonData)
-    local ok, _, code = pipe:close()
-
-    if ok == nil then
+    local response = {}
+    local ok, code = pcall(http.request, {
+        url = WEBHOOK_URL,
+        method = "POST",
+        headers = {
+            ["Content-Type"] = "application/json",
+            ["Content-Length"] = tostring(#jsonData)
+        },
+        source = ltn12.source.string(jsonData),
+        sink = ltn12.sink.table(response)
+    })
+    if not ok or tonumber(code) == nil or tonumber(code) < 200 or tonumber(code) >= 300 then
         return false
     end
 

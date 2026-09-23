@@ -9,6 +9,21 @@ local sent = false
 local resultFont = nil
 local labelFont = nil
 
+local function hasAllResults()
+    local players = online_connect.getPartyPlayers()
+    if #players == 0 then
+        return results[playerID] ~= nil
+    end
+
+    for _, id in ipairs(players) do
+        if not results[id] then
+            return false
+        end
+    end
+
+    return true
+end
+
 local function number(value)
     return math.max(0, math.floor(tonumber(value) or 0))
 end
@@ -140,6 +155,12 @@ function online_result.draw()
         love.graphics.print(text, x + 16, rowY)
     end
 
+    if not hasAllResults() then
+        love.graphics.setColor(1, 0.85, 0.45, 1)
+        love.graphics.setFont(labelFont or love.graphics.getFont())
+        love.graphics.print("全員の結果を待っています", x + 16, y - 30)
+    end
+
     love.graphics.setColor(1, 1, 1, 1)
 end
 
@@ -150,14 +171,18 @@ function online_result.drawOverlay()
 end
 
 function online_result.mousepressed(...)
-    if result.mousepressed then
-        result.mousepressed(...)
+    if hasAllResults() and type(changeProgram) == "function" then
+        changeProgram(9)
     end
 end
 
 function online_result.keypressed(...)
-    if result.keypressed then
-        result.keypressed(...)
+    local key = ...
+    if (key == "return" or key == "space" or key == "escape")
+        and hasAllResults()
+        and type(changeProgram) == "function"
+    then
+        changeProgram(9)
     end
 end
 

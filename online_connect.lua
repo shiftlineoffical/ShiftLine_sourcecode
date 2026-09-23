@@ -3,7 +3,7 @@ local online_connect = {
     roomID="",
 }
 
-local network=require("network")
+local network=require("online.network")
 
 local mode = "offline"
 

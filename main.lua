@@ -119,7 +119,7 @@ local gamejolt = require "gamejolt"
 local openingloader= require "openingloader"
 local opening = require "opening"
 local gamemodeselect = require "gamemodeselect"
-local play = require "play"
+local play = require "gameplay.play"
 local musicselect = require "musicselect"
 local userbadge = require "userbadge"
 local settings = require "settings"
@@ -127,6 +127,12 @@ local console = require "console"
 local story = require "storyselecter"
 local result = require "result"
 local reporter = require "error_reporter"
+local paths = require "core.paths"
+local coreAudio = require "core.audio"
+local coreInput = require "core.input"
+local coreWindow = require "core.window"
+local songmanager = require "songs.songmanager"
+local songloader = require "songs.songloader"
 
 local presence = {}
 local discordEnabled = false
@@ -134,6 +140,7 @@ local nextPresenceUpdate = 0
 local discordJoinSecretPrefix = "shiftline:"
 
 local programnumber=0
+local coreScene = require "core.scene"
 local program
 
 
@@ -172,7 +179,7 @@ local programs = {
     [1] = require "opening",
     [2] = require "gamemodeselect",
     [3] = require "musicselect",
-    [4] = require "play",
+    [4] = require "gameplay.play",
     [5] = require "settings",
     [6] = require "storyselecter",
     [7] = require "result",
@@ -199,10 +206,12 @@ local function prepareStartupAssets()
     end
 
     if main.startup.collections then
+        songloader.loadCollections(main.startup.collections, "local")
         if musicselect.setCollections then
             musicselect.setCollections(main.startup.collections)
         end
         if musicselect.setStartupAssets then
+    coreScene.attach(program)
             musicselect.setStartupAssets(main.startup.collections, main.startup.previewSources or {})
         end
     end
@@ -458,6 +467,7 @@ end
 function love.load()
 local icon = love.image.newImageData("img/ico.png")
     love.window.setIcon(icon)
+    paths.ensure()
 
 
 
@@ -477,6 +487,7 @@ local icon = love.image.newImageData("img/ico.png")
 
     -- Load and apply saved settings before starting the first program.
     settings.load()
+    coreAudio.setVolume(settings.settingsdata.audiosettings.mastervolume)
 
     programsettings()
     program.load()
@@ -601,6 +612,7 @@ function love.update(dt)
 
     --プログラムの移行
     if programnumber == 0 and openingloader.endprocess then
+        prepareStartupAssets()
         changeProgram(1)
         
     elseif programnumber == 1 and opening.endprocess then
@@ -674,9 +686,7 @@ function love.update(dt)
 
 
     programsettings()
-    if program.update then
-        program.update(dt)
-    end
+    coreScene.update(dt)
 if programnumber ~= 9
     and programnumber ~= 10
     and programnumber ~= 11
@@ -748,9 +758,7 @@ end
 
 function love.draw()
     programsettings()
-    if program.draw then
-        program.draw()
-    end
+    coreScene.draw()
 
     if programnumber ~= 0
     and programnumber ~= 4
@@ -787,6 +795,7 @@ function programsettings()
     program = programs[programnumber]
     _G.program = program
     _G.programnumber = programnumber
+    coreScene.attach(program)
 end
 
 
@@ -860,6 +869,10 @@ end
 
 
 function love.keypressed(key, scancode, isrepeat)
+    if coreInput.keypressed(key, scancode, isrepeat) then
+        return
+    end
+
     if key == "f10" and console then
         console.toggle()
         return
@@ -872,17 +885,6 @@ function love.keypressed(key, scancode, isrepeat)
         return
     end
 	
-
-    if key == "f11" then
-        local fullscreen = love.window.getFullscreen()
-
-        if fullscreen then
-            love.window.setFullscreen(false)
-        else
-            love.window.setFullscreen(true, "desktop")
-        end
-    end
-
 
     if key == "f1" and programnumber == 8 then
         if program.keypressed then
@@ -901,6 +903,8 @@ function love.keypressed(key, scancode, isrepeat)
 end
 
 function love.keyreleased(key, scancode)
+    coreInput.keyreleased(key, scancode)
+
     if console and console.active then
         if console.keyreleased then
             console.keyreleased(key, scancode)

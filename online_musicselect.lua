@@ -2,7 +2,7 @@ local online_musicselect = {}
 
 local musicselect = require("musicselect")
 local online_connect = require("online_connect")
-local play = require("play")
+local play = require("gameplay.play")
 
 local votes = {}
 local voted = false

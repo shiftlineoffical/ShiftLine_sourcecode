@@ -1,12 +1,14 @@
 local online_play = {}
 
-local play = require("play")
+local play = require("gameplay.play")
 local online_connect = require("online_connect")
 local gamejolt = require("gamejolt")
 
 local comboByPlayer = {}
 local playerInfo = {}
 local avatarCache = {}
+local rankedPlayers = {}
+local rankingsDirty = true
 
 local playerID = nil
 local sendTimer = 0
@@ -22,6 +24,8 @@ local function resetState()
     comboByPlayer = {}
     playerInfo = {}
     avatarCache = {}
+    rankedPlayers = {}
+    rankingsDirty = true
 
     playerID =
         online_connect.getPlayerID() or "local"
@@ -204,15 +208,16 @@ local function sendPlayerInfo()
 
     local name, avatarUrl =
         getLocalInfo()
+    local id = playerID or "local"
 
-    playerInfo[playerID] = {
+    playerInfo[id] = {
         name = name,
         avatarUrl = avatarUrl,
     }
 
     online_connect.send(
         "ONLINE_PLAYER",
-        playerID,
+        id,
         name,
         avatarUrl or ""
     )
@@ -247,6 +252,11 @@ local function receivePacket(typeName, parts)
             avatarUrl = avatarUrl,
         }
 
+        rankingsDirty = true
+        if avatarUrl then
+            loadAvatar(avatarUrl)
+        end
+
         return
     end
 
@@ -264,6 +274,7 @@ local function receivePacket(typeName, parts)
                     0,
                     math.floor(combo)
                 )
+            rankingsDirty = true
         end
 
         return
@@ -277,9 +288,14 @@ local function playerLeft(id)
 
     comboByPlayer[id] = nil
     playerInfo[id] = nil
+    rankingsDirty = true
 end
 
 local function getRankedPlayers()
+    if not rankingsDirty then
+        return rankedPlayers
+    end
+
     local result = {}
 
     for id, combo in pairs(comboByPlayer) do
@@ -314,7 +330,9 @@ local function getRankedPlayers()
         end
     )
 
-    return result
+    rankedPlayers = result
+    rankingsDirty = false
+    return rankedPlayers
 end
 
 local function getRankColor(rank)
@@ -392,11 +410,12 @@ function online_play.update(dt)
             math.floor(currentCombo)
         )
 
-    comboByPlayer[playerID] =
+    local id = playerID or "local"
+    comboByPlayer[id] =
         currentCombo
 
     if currentCombo ~= lastSentCombo
-        and sendTimer >= 0.05
+        and sendTimer >= 0.1
     then
         sendTimer = 0
 
@@ -405,7 +424,7 @@ function online_play.update(dt)
 
         online_connect.send(
             "ONLINE_COMBO",
-            playerID,
+            id,
             currentCombo
         )
     end
@@ -487,10 +506,7 @@ function online_play.draw()
         local avatar = nil
 
         if player.avatarUrl then
-            avatar =
-                loadAvatar(
-                    player.avatarUrl
-                )
+            avatar = avatarCache[player.avatarUrl]
         end
 
         if avatar then
@@ -620,9 +636,13 @@ function online_play.wheelmoved(...)
     end
 end
 
-function online_play.keypressed(...)
+function online_play.keypressed(key, ...)
+    if key == "escape" then
+        return
+    end
+
     if play.keypressed then
-        play.keypressed(...)
+        play.keypressed(key, ...)
     end
 end
 

@@ -3,7 +3,7 @@ local musicselect={}
 local log = require "log"
 local audiocache = require "audiocache"
 local createsfb = require "createsfb"
-local play = require "play"
+local play = require "gameplay.play"
 local i18n = require "i18n"
 local gamejolt = require "gamejolt"
 local gamejoltuser = require "gamejoltuser"
@@ -106,6 +106,7 @@ local function levelValueExists(levelInfo, diff)
 end
 
 local genreListCache = {"All"}
+local appliedGenre = nil
 local difficultyZonesCache = nil
 local difficultyZonesCacheWidth = 0
 local difficultyZonesCacheHeight = 0
@@ -1110,6 +1111,7 @@ local function applySelectedGenreFilter()
         musicselect.selectedIndex = 0
     end
     cardTopIndex = 1
+    appliedGenre = selectedGenre
 end
 
 local function getCardLayout()
@@ -1176,13 +1178,18 @@ function musicselect.load()
 
     musicselect.onlineMode = false
 
-    urlimg=love.graphics.newImage("img/Link.png")
+    if not urlimg then
+        urlimg=love.graphics.newImage("img/Link.png")
+    end
 
     log.info("Musicselect - musicselect.load() started")
     selectedGenre = "All"
     cachedChartData = nil
     chartMetaCache = {}
     sfbloadercatcher()
+    if appliedGenre ~= selectedGenre then
+        applySelectedGenreFilter()
+    end
     
     log.info("Reading music chart data...")
     local loadedChartData = chartreader()
@@ -1313,6 +1320,13 @@ end
 
 function musicselect.setCollections(c)
     local previousCollections = collections
+    if c and previousCollections == c
+        and allChartfilesCache
+        and allChartDataCache
+        and filteredCollections
+    then
+        return
+    end
     collections = c
     filteredCollections = nil
     cachedChartData = nil

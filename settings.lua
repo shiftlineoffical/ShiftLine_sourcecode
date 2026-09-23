@@ -28,6 +28,7 @@ local log = require("log")
 local gamejolt = require("gamejolt")
 local JSON = require("JSON")
 local ui = require("lib.ui")
+local settingsApi = require("settings.settings_api")
 
 local displayWidth, displayHeight = love.graphics.getDimensions()
 
@@ -583,6 +584,14 @@ settingsdata={
 }
 
 settings.settingsdata = settingsdata
+
+function settings.get(path, default)
+    return settingsApi.get(settingsdata, path, default)
+end
+
+function settings.set(path, value)
+    return settingsApi.set(settingsdata, path, value)
+end
 
 function settings.applyDisplaySettings()
     if love.window then

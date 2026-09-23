@@ -18,7 +18,7 @@ local math_floor = math.floor
 local math_max = math.max
 local math_min = math.min
 
-local play = require "play"
+local play = require "gameplay.play"
 local musicselect = require "musicselect"
 local log = require "log"
 local i18n = require "i18n"
