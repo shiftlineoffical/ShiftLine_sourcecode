@@ -19,6 +19,8 @@ local comboFont = nil
 local labelFont = nil
 local playerFont = nil
 local rankFont = nil
+local getLocalInfo
+local loadAvatar
 
 local function resetState()
     comboByPlayer = {}
@@ -30,12 +32,18 @@ local function resetState()
     playerID =
         online_connect.getPlayerID() or "local"
 
+    local localName, localAvatarUrl = getLocalInfo()
+
     comboByPlayer[playerID] = 0
 
     playerInfo[playerID] = {
-        name = "Player",
-        avatarUrl = nil,
+        name = localName,
+        avatarUrl = localAvatarUrl,
     }
+
+    if localAvatarUrl then
+        loadAvatar(localAvatarUrl)
+    end
 
     sendTimer = 0
     infoTimer = 0
@@ -79,7 +87,7 @@ local function updateFonts()
     )
 end
 
-local function getLocalInfo()
+getLocalInfo = function()
     local name = "Player"
     local avatarUrl = nil
 
@@ -100,6 +108,14 @@ local function getLocalInfo()
             avatarUrl =
                 gamejolt.status.avatarUrl
         end
+    end
+
+    if name == "Player"
+        and type(playerID) == "string"
+        and playerID ~= ""
+        and playerID ~= "local"
+    then
+        name = playerID
     end
 
     return name, avatarUrl
@@ -132,7 +148,7 @@ local function getAvatarExtension(url)
     return "png"
 end
 
-local function loadAvatar(url)
+loadAvatar = function(url)
     if type(url) ~= "string"
         or url == ""
     then
@@ -214,6 +230,10 @@ local function sendPlayerInfo()
         name = name,
         avatarUrl = avatarUrl,
     }
+
+    if avatarUrl then
+        loadAvatar(avatarUrl)
+    end
 
     online_connect.send(
         "ONLINE_PLAYER",
@@ -367,6 +387,9 @@ function online_play.load()
 
     updateFonts()
     resetState()
+    if online_connect.isConnected() then
+        sendPlayerInfo()
+    end
 end
 
 function online_play.update(dt)
