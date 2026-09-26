@@ -26,6 +26,8 @@ local settings = {}
 local utf8 = require("utf8")
 local log = require("log")
 local gamejolt = require("gamejolt")
+local discordSDK = require("lib.SDK")
+local onlineConnect = require("online_connect")
 local JSON = require("JSON")
 local ui = require("lib.ui")
 local settingsApi = require("settings.settings_api")
@@ -66,6 +68,10 @@ local feedbackStatus = nil -- nil, "sending", "sent", "error"
 local feedbackStatusTime = 0
 local feedbackFocusedField = 1 -- 1 = subject, 2 = body
 local feedbackTextInputEnabled = false
+local discordFriendsOpen = false
+local discordFriends = {}
+local selectedDiscordFriendIndex = 1
+local discordFriendsMessage
 local BACKSPACE_REPEAT_DELAY = 0.4
 local BACKSPACE_REPEAT_INTERVAL = 0.05
 local backspaceWasDown = false
@@ -89,7 +95,7 @@ local categories = {"display", "audio", "misc", "play", "key", "feedback"}
 local settingFields = {
     {"displaySize", "displayMode", "vsync"},
     {"masterVolume", "musicVolume", "sfxVolume"},
-    {"language", "timeout", "defaultLevel"},
+    {"language", "timeout", "defaultLevel", "discordAccount", "discordFriends"},
     {"moveSpeed", "timing", "playLogSave", "showFPS"},
     {"leftone", "lefttwo", "lefttree", "rightone", "righttwo", "righttree"},
     {"feedbackSubject", "feedbackBody", "feedbackSend"}
@@ -116,6 +122,22 @@ local localeTexts = {
         language = "言語",
         timeout = "タイムアウト",
         defaultLevel = "デフォルト難易度",
+        discordAccount = "Discord連携",
+        discordConnect = "接続する",
+        discordConnected = "接続済み（Enterで解除）",
+        discordConnecting = "接続中...",
+        discordFailed = "接続失敗（Enterで再試行）",
+        discordUnavailable = "利用不可",
+        discordAccountHelp = "EnterまたはクリックでDiscord連携。接続済みなら解除します。",
+        discordFriends = "Discordフレンド",
+        discordFriendsOpen = "一覧を開く",
+        discordFriendsConnectFirst = "先にDiscordへ接続してください",
+        discordFriendsEmpty = "Discordフレンドがいません",
+        discordFriendsNeedRoom = "オンラインルームを開いてから招待できます",
+        discordInviteAction = "選択したフレンドを招待",
+        discordInviteSent = "招待を送信しました",
+        discordInviteFailed = "招待を送信できませんでした",
+        discordFriendsHelp = "上下で選択、Enterで招待、Escで戻る",
         moveSpeed = "移動速度",
         timing = "タイミング",
         playLogSave = "プレイログ保存",
@@ -165,6 +187,22 @@ local localeTexts = {
         language = "Language",
         timeout = "Timeout",
         defaultLevel = "Default Level",
+        discordAccount = "Discord Account",
+        discordConnect = "Connect Discord",
+        discordConnected = "Connected (Enter to disconnect)",
+        discordConnecting = "Connecting...",
+        discordFailed = "Connection failed (Enter to retry)",
+        discordUnavailable = "Unavailable",
+        discordAccountHelp = "Press Enter or click to connect. Disconnects when already connected.",
+        discordFriends = "Discord Friends",
+        discordFriendsOpen = "Open friend list",
+        discordFriendsConnectFirst = "Connect Discord first",
+        discordFriendsEmpty = "No Discord friends found",
+        discordFriendsNeedRoom = "Open or join an online room before inviting",
+        discordInviteAction = "Invite selected friend",
+        discordInviteSent = "Invite sent",
+        discordInviteFailed = "Could not send invite",
+        discordFriendsHelp = "Up/Down to select, Enter to invite, Esc to return",
         moveSpeed = "Move Speed",
         timing = "Timing",
         playLogSave = "Play Log Save",
@@ -310,7 +348,46 @@ local function getCurrentFieldCount()
 end
 
 local function isAdjustableField(fieldName)
-    return true
+    return fieldName ~= "discordAccount" and fieldName ~= "discordFriends"
+end
+
+local function activateDiscordAccount()
+    local state = discordSDK.getAuthState()
+    if state == "ready" then
+        discordSDK.logout()
+    elseif state ~= "authorizing" and state ~= "authenticating" and state ~= "connecting" then
+        discordSDK.authorize()
+    end
+end
+
+local function openDiscordFriends()
+    discordFriendsOpen = true
+    selectedDiscordFriendIndex = 1
+    discordFriendsMessage = nil
+    local friends, message = discordSDK.getFriends()
+    if not friends then
+        discordFriends = {}
+        discordFriendsMessage = tostring(message or getLocaleText("discordFriendsConnectFirst"))
+        return
+    end
+    discordFriends = friends
+    if #discordFriends == 0 then
+        discordFriendsMessage = getLocaleText("discordFriendsEmpty")
+    end
+end
+
+local function inviteSelectedDiscordFriend()
+    local friend = discordFriends[selectedDiscordFriendIndex]
+    if not friend then
+        return
+    end
+    local roomID = onlineConnect.getRoomID()
+    if type(roomID) ~= "string" or roomID == "" then
+        discordFriendsMessage = getLocaleText("discordFriendsNeedRoom")
+        return
+    end
+    local sent = discordSDK.sendActivityInvite(friend.id, "Join my ShiftLine room")
+    discordFriendsMessage = getLocaleText(sent and "discordInviteSent" or "discordInviteFailed")
 end
 
 local function drawMenuItem(y, label, isSelected)
@@ -339,6 +416,22 @@ local function getSettingValue(key)
         return tostring(settingsdata.miscsettings.timeout)
     elseif key == "defaultLevel" then
         return getDefaultLevelText(settingsdata.miscsettings.defoltlevel)
+    elseif key == "discordAccount" then
+        local state = discordSDK.getAuthState()
+        if state == "ready" then
+            return getLocaleText("discordConnected")
+        elseif state == "authorizing" or state == "authenticating" or state == "connecting" then
+            return getLocaleText("discordConnecting")
+        elseif state == "failed" then
+            return getLocaleText("discordFailed")
+        elseif state == "unavailable" then
+            return getLocaleText("discordUnavailable")
+        end
+        return getLocaleText("discordConnect")
+    elseif key == "discordFriends" then
+        return discordSDK.getAuthState() == "ready"
+            and getLocaleText("discordFriendsOpen")
+            or getLocaleText("discordFriendsConnectFirst")
     elseif key == "moveSpeed" then
         return string_format("%.1f", settingsdata.playsettings.movespead)
     elseif key == "timing" then
@@ -796,8 +889,15 @@ function settings.update(dt)
 end
 
 
+local drawDiscordFriends
+
 function settings.draw()
     updateLayout()
+
+    if discordFriendsOpen then
+        drawDiscordFriends()
+        return
+    end
 
     if selectedIndex == 5 then
         drawKeyConfigScreen()
@@ -926,7 +1026,11 @@ function settings.draw()
     end
 
     love.graphics.setColor(1, 1, 1, 0.78)
-    love.graphics.print(getLocaleText("helpText"), layout.rightX, displayHeight - font:getHeight() * 2)
+    local helpText = getLocaleText("helpText")
+    if selectedIndex == 3 and settingFields[selectedIndex][selectedFieldIndex] == "discordAccount" then
+        helpText = getLocaleText("discordAccountHelp")
+    end
+    love.graphics.print(helpText, layout.rightX, displayHeight - font:getHeight() * 2)
 end
 
 
@@ -955,6 +1059,61 @@ local function getFeedbackFormLayout()
     local bodyFieldHeight = math_max(64, math_min(144, availableBodyHeight))
     local buttonY = bodyInputY + bodyFieldHeight + 16
     return formX, formW, formY, subjectInputY, bodyLabelY, bodyInputY, buttonY, fieldHeight, bodyFieldHeight
+end
+
+local function getDiscordFriendsViewport()
+    local listX = layout.rightX
+    local listY = layout.panelY + layout.lineHeight * 2 + layout.spacing + 24
+    local listW = displayWidth - listX - layout.padding
+    local buttonHeight = math_max(44, font:getHeight() + 16)
+    local buttonY = displayHeight - layout.padding - buttonHeight
+    local listHeight = math_max(1, buttonY - listY - 16)
+    local rowHeight = math_max(40, font:getHeight() + 14)
+    local visibleCount = math_max(1, math_floor(listHeight / rowHeight))
+    local firstIndex = math_min(
+        math_max(1, selectedDiscordFriendIndex - visibleCount + 1),
+        math_max(1, #discordFriends - visibleCount + 1)
+    )
+    return listX, listY, listW, listHeight, rowHeight, firstIndex, visibleCount,
+        listX, buttonY, listW, buttonHeight
+end
+
+drawDiscordFriends = function()
+    local listX, listY, listW, _, rowHeight, firstIndex, visibleCount,
+        buttonX, buttonY, buttonW, buttonHeight = getDiscordFriendsViewport()
+    local lastIndex = math_min(#discordFriends, firstIndex + visibleCount - 1)
+
+    love.graphics.setFont(Titlefont)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(getLocaleText("discordFriends"), listX, layout.padding, listW, "center")
+
+    love.graphics.setFont(font)
+    for index = firstIndex, lastIndex do
+        local rowY = listY + (index - firstIndex) * rowHeight
+        local selected = index == selectedDiscordFriendIndex
+        love.graphics.setColor(selected and {0.22, 0.22, 0.22, 0.96} or {0.1, 0.1, 0.1, 0.92})
+        love.graphics.rectangle("fill", listX, rowY, listW, rowHeight - 4)
+        love.graphics.setColor(1, 1, 1, 0.9)
+        drawAlignedText(discordFriends[index].name, listX + 16, rowY, listW * 0.62, rowHeight - 4, font, "left")
+        drawAlignedText(discordFriends[index].status, listX + listW * 0.65, rowY, listW * 0.3, rowHeight - 4, font, "right")
+    end
+
+    if discordFriendsMessage then
+        love.graphics.setColor(1, 1, 1, 0.75)
+        love.graphics.printf(discordFriendsMessage, listX, buttonY - font:getHeight() - 8, listW, "center")
+    end
+
+    local buttonText = onlineConnect.getRoomID() ~= ""
+        and getLocaleText("discordInviteAction")
+        or getLocaleText("discordFriendsNeedRoom")
+    love.graphics.setColor(0.12, 0.12, 0.12, 0.96)
+    love.graphics.rectangle("fill", buttonX, buttonY, buttonW, buttonHeight)
+    love.graphics.setColor(1, 1, 1, 0.4)
+    love.graphics.rectangle("line", buttonX, buttonY, buttonW, buttonHeight)
+    love.graphics.setColor(1, 1, 1, 0.96)
+    drawAlignedText(buttonText, buttonX + 12, buttonY, buttonW - 24, buttonHeight, font, "center")
+    love.graphics.setColor(1, 1, 1, 0.7)
+    love.graphics.print(getLocaleText("discordFriendsHelp"), layout.padding, displayHeight - font:getHeight() * 2)
 end
 
 local function sendFeedbackToDiscord()
@@ -1015,7 +1174,14 @@ local payload = {
     
     local jsonStr = json:encode(payload)
     
-    local FEEDBACK_WEBHOOK = "https://discord.com/api/webhooks/1538478639035977768/XKgGrGAZayJWFDhu4WETpnABOpvxe7lD7kHwdcGgA-M6IjS7w8YLd5qACKVbOl0xVk0V"
+    local FEEDBACK_WEBHOOK = os.getenv("SHIFTLINE_FEEDBACK_WEBHOOK_URL")
+        or os.getenv("SHIFTLINE_WEBHOOK_URL")
+        or ""
+    if FEEDBACK_WEBHOOK == "" then
+        feedbackStatus = "error"
+        feedbackStatusTime = os.time()
+        return
+    end
 
 
 
@@ -1118,6 +1284,20 @@ function settings.mousepressed(x, y, button)
     end
 
     updateLayout()
+
+    if discordFriendsOpen then
+        local listX, listY, listW, listHeight, rowHeight, firstIndex, _,
+            buttonX, buttonY, buttonW, buttonHeight = getDiscordFriendsViewport()
+        if isPointInRect(x, y, buttonX, buttonY, buttonW, buttonHeight) then
+            inviteSelectedDiscordFriend()
+        elseif isPointInRect(x, y, listX, listY, listW, listHeight) then
+            local index = firstIndex + math_floor((y - listY) / rowHeight)
+            if index >= 1 and index <= #discordFriends then
+                selectedDiscordFriendIndex = index
+            end
+        end
+        return
+    end
     
     print("[DEBUG] mousepressed called, selectedIndex=" .. selectedIndex .. ", x=" .. x .. ", y=" .. y)
     
@@ -1183,6 +1363,11 @@ function settings.mousepressed(x, y, button)
     local index = getFieldIndexAtPosition(x, y)
     if index then
         selectedFieldIndex = index
+        if selectedIndex == 3 and settingFields[selectedIndex][index] == "discordAccount" then
+            activateDiscordAccount()
+        elseif selectedIndex == 3 and settingFields[selectedIndex][index] == "discordFriends" then
+            openDiscordFriends()
+        end
     end
     return
 end
@@ -1374,6 +1559,19 @@ function settings.openMenu()
 end
 
 function settings.keypressed(key, scancode, isrepeat)
+    if discordFriendsOpen then
+        if key == "escape" then
+            discordFriendsOpen = false
+        elseif #discordFriends > 0 and (key == "up" or key == "w" or key == "kpup") then
+            selectedDiscordFriendIndex = math_max(1, selectedDiscordFriendIndex - 1)
+        elseif #discordFriends > 0 and (key == "down" or key == "s" or key == "kpdown") then
+            selectedDiscordFriendIndex = math_min(#discordFriends, selectedDiscordFriendIndex + 1)
+        elseif key == "return" or key == "space" or key == "kpenter" then
+            inviteSelectedDiscordFriend()
+        end
+        return
+    end
+
     if selectedIndex == 6 then -- Feedback category
         if key == "escape" then
             selectedIndex = 1
@@ -1488,6 +1686,15 @@ function settings.keypressed(key, scancode, isrepeat)
 
     if key == "tab" then
         selectedFieldIndex = selectedFieldIndex % getCurrentFieldCount() + 1
+        return
+    end
+
+    if key == "return" or key == "space" or key == "kpenter" then
+        if selectedIndex == 3 and settingFields[selectedIndex][selectedFieldIndex] == "discordAccount" then
+            activateDiscordAccount()
+        elseif selectedIndex == 3 and settingFields[selectedIndex][selectedFieldIndex] == "discordFriends" then
+            openDiscordFriends()
+        end
         return
     end
 

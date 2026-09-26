@@ -4,7 +4,7 @@ play:play.luaの内容
 dotfont:ドットフォント
 logofont:ロゴフォント
 playdata:ゲームプレイ中の難易度・曲名・スコア等データ
-discordRPC:Discord Rich Presenceのモジュール
+discordSDK:Discord Game SDKのモジュール
 appId:DiscordアプリケーションID
 presence:Discord Rich Presenceの状態を表すテーブル
 discordEnabled:Discord Rich Presenceが有効かどうかのフラグ
@@ -82,23 +82,7 @@ musiclevel = ""
 
 local log = require "log"
 
-local discordRPC = {}
-
-log.info("Discord RPC: loading module...")
-
-local okDiscord, drpc = pcall(require, "discordRPC")
-
-log.info("Discord RPC: require result = " .. tostring(okDiscord))
-log.info("Discord RPC: module = " .. tostring(drpc))
-
-if okDiscord and drpc then
-    discordRPC = drpc
-    log.info("Discord RPC: module loaded")
-    log.info("Discord RPC: initialize = " .. tostring(discordRPC.initialize))
-else
-    log.error("Discord RPC: require failed: " .. tostring(drpc))
-end
-
+local discordSDK = require "lib.SDK"
 local appId = require("applicationId")
 
 
@@ -135,9 +119,11 @@ local songmanager = require "songs.songmanager"
 local songloader = require "songs.songloader"
 
 local presence = {}
+local discordActivityInvites = {}
 local discordEnabled = false
 local nextPresenceUpdate = 0
 local discordJoinSecretPrefix = "shiftline:"
+local discordLargeImageKey = os.getenv("SHIFTLINE_DISCORD_LARGE_IMAGE_KEY") or "ico"
 
 local programnumber=0
 local coreScene = require "core.scene"
@@ -193,7 +179,6 @@ local programs = {
 local gamestatus = ""
 local main = {
     online = false,
-    pendingDiscordJoinSecret = nil,
     startup = {
         collections = nil,
         previewSources = nil
@@ -225,12 +210,42 @@ end
 
 
 
-local function getSongTitleForPresence()
-    local title = gamestatus
-    if type(title) ~= "string" or title == "" then
-        return "起動中"
+local function getDiscordGameplayState(difficulty, title)
+    local fields = {}
+    if type(title) == "string" and title ~= "" then
+        fields[#fields + 1] = title
     end
-    return title
+    if type(difficulty) == "string" and difficulty ~= "" then
+        fields[#fields + 1] = string.upper(difficulty)
+    end
+    return #fields > 0 and table.concat(fields, " | ") or nil
+end
+
+local function getDiscordPresenceFields()
+    if programnumber == 3 then
+        return "Song Select", nil
+    end
+
+    if programnumber == 4 then
+        local title = type(musicname) == "string" and musicname ~= "" and musicname or "ShiftLine"
+        local difficulty = type(musicdifficulty) == "string" and musicdifficulty ~= ""
+            and string.upper(musicdifficulty)
+            or nil
+        return "Playing: " .. title, getDiscordGameplayState(difficulty)
+    end
+
+    if programnumber >= 9 and programnumber <= 12 then
+        if programnumber == 11 then
+            local title = type(musicname) == "string" and musicname ~= "" and musicname or nil
+            local difficulty = type(musicdifficulty) == "string" and musicdifficulty ~= ""
+                and musicdifficulty
+                or nil
+            return "Online", getDiscordGameplayState(difficulty, title)
+        end
+        return "Online", nil
+    end
+
+    return nil, nil
 end
 
 local function getDiscordJoinSecretFromArguments()
@@ -429,36 +444,111 @@ function setDiscordJoinSecret(joinSecret)
         return
     end
     presence.joinSecret = joinSecret
-    discordRPC.updatePresence(presence)
+    discordSDK.update(presence)
 end
 
-function discordRPC.ready(userId, username, discriminator, avatar)
-    log.info(string.format("Discord: ready (%s, %s, %s, %s)", userId, username, discriminator, avatar))
-end
-
-function discordRPC.disconnected(errorCode, message)
-    log.warn(string.format("Discord: disconnected (%d: %s)", errorCode, message))
-end
-
-function discordRPC.errored(errorCode, message)
-    log.error(string.format("Discord: error (%d: %s)", errorCode, message))
-end
-
-function discordRPC.joinGame(joinSecret)
-    log.info(string.format("Discord: join (%s)", joinSecret))
-    if type(joinSecret) == "string" and joinSecret ~= "" then
-        local roomID = joinSecret:match("^" .. discordJoinSecretPrefix .. "(.+)$")
-        main.pendingDiscordJoinSecret = roomID or joinSecret
+local function handleDiscordEvent(event)
+    if type(event) ~= "table" then
+        return
+    end
+    if event.type == "activity_invite" then
+        if #discordActivityInvites < 16 then
+            discordActivityInvites[#discordActivityInvites + 1] = event
+            log.info("Discord Social SDK: Activity Invite received from " .. tostring(event.senderName))
+        else
+            discordSDK.respondToActivityInvite(event.id, false)
+            log.warn("Discord Social SDK: Activity Invite queue is full")
+        end
+    elseif event.type == "join" then
+        local secret = event.secret
+        if type(secret) ~= "string" or secret == "" then
+            return
+        end
+        local roomID = secret:match("^" .. discordJoinSecretPrefix .. "(.+)$") or secret
+        if roomID == "" then
+            return
+        end
+        log.info("Discord Social SDK: joining room from activity")
+        onlineMode = true
+        main.online = true
+        if programnumber ~= 9 then
+            changeProgram(9)
+        end
+        if online_room and online_room.joinWithRoomID then
+            online_room.joinWithRoomID(roomID)
+        end
+    elseif event.type == "spectate" then
+        log.info("Discord Social SDK: spectate event received")
+    elseif event.type == "join_request" then
+        log.info("Discord Social SDK: join request from " .. tostring(event.username))
     end
 end
 
-function discordRPC.spectateGame(spectateSecret)
-    log.info(string.format("Discord: spectate (%s)", spectateSecret))
+local function getDiscordInviteDialogBounds()
+    local width, height = love.graphics.getDimensions()
+    local dialogWidth = math.min(620, width - 32)
+    local dialogHeight = 190
+    return (width - dialogWidth) / 2, (height - dialogHeight) / 2, dialogWidth, dialogHeight
 end
 
-function discordRPC.joinRequest(userId, username, discriminator, avatar)
-    log.info(string.format("Discord: join request (%s, %s, %s, %s)", userId, username, discriminator, avatar))
-    discordRPC.respond(userId, "yes")
+local function respondToNextDiscordInvite(accept)
+    local invite = table.remove(discordActivityInvites, 1)
+    if invite then
+        discordSDK.respondToActivityInvite(invite.id, accept)
+    end
+end
+
+local function drawDiscordInviteDialog()
+    local invite = discordActivityInvites[1]
+    if not invite then
+        return
+    end
+
+    local x, y, width, height = getDiscordInviteDialogBounds()
+    local language = settings.settingsdata.miscsettings.language or "jp"
+    local wantsToJoin = invite.action == 5
+    local title
+    local prompt
+    local controls
+    if language == "en" then
+        title = wantsToJoin and "Join request" or "Activity invite"
+        prompt = wantsToJoin
+            and (invite.senderName .. " wants to join your session")
+            or (invite.senderName .. " invited you to join")
+        controls = "Enter: accept    Esc: dismiss"
+    else
+        title = wantsToJoin and "参加リクエスト" or "アクティビティ招待"
+        prompt = wantsToJoin
+            and (invite.senderName .. " さんが参加を希望しています")
+            or (invite.senderName .. " さんから参加招待が届きました")
+        controls = "Enter: 承認    Esc: 辞退"
+    end
+
+    love.graphics.push("all")
+    love.graphics.setColor(0, 0, 0, 0.9)
+    love.graphics.rectangle("fill", x, y, width, height, 4)
+    love.graphics.setColor(1, 1, 1, 0.4)
+    love.graphics.rectangle("line", x, y, width, height, 4)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(title, x + 24, y + 22, width - 48, "center")
+    love.graphics.printf(prompt, x + 24, y + 68, width - 48, "center")
+    love.graphics.printf(controls, x + 24, y + height - 48, width - 48, "center")
+    love.graphics.pop()
+end
+
+local function registerDiscordLaunchCommand()
+    if not discordEnabled or not love.filesystem.getSource then
+        return
+    end
+    local source = love.filesystem.getSource():gsub("[/\\]+$", "")
+    local launcherPath = source .. "/../ShiftLineLauncher.exe"
+    local info = love.filesystem.getInfo(launcherPath)
+    if not info then
+        log.warn("Discord Social SDK: launcher not found: " .. launcherPath)
+        return
+    end
+    local command = '"' .. launcherPath:gsub('"', '\\"') .. '" --online'
+    discordSDK.registerLaunchCommand(command)
 end
 
 
@@ -479,8 +569,6 @@ local icon = love.image.newImageData("img/ico.png")
     math.randomseed(os.time())
     reporter.resendIfExists()
 
-    registerDiscordLauncherProtocol()
-
     -- マウスカーソル
     cursor = love.mouse.newCursor("img/cursor.png", 0, 0)
     love.mouse.setCursor(cursor)
@@ -493,53 +581,33 @@ local icon = love.image.newImageData("img/ico.png")
     program.load()
 
     -- Discord
-    log.info("Discord RPC: checking initialize")
-log.info("Discord RPC: type = " .. type(discordRPC))
-log.info("Discord RPC: initialize type = " .. type(discordRPC.initialize))
-
-if type(discordRPC.initialize) == "function" then
-
-    local ok, err = pcall(discordRPC.initialize, appId, false, nil)
-        if ok then
-            discordEnabled = true
-        else
-            discordEnabled = false
-            log.error(string.format("Discord: initialize failed (%s)", tostring(err)))
-        end
-    else
-        discordEnabled = false
+    log.info("Discord Social SDK: checking initialize")
+    discordEnabled = discordSDK.start(appId)
+    if not discordEnabled then
         log.info("Discord disabled: missing module or platform library")
-    end
-
-
-    local partyMax
-    if onlineMode then
-        partyMax = 4
     else
-        partyMax = 1
+        registerDiscordLaunchCommand()
     end
-    local state = "ソロプレイ中"
-
-
 
     local now = os.time()
+    local details, state = getDiscordPresenceFields()
     presence = {
         state = state,
-        details = getSongTitleForPresence(),
+        details = details,
         startTimestamp = now,
         partyId = "",
         partySize = 1,
-        partyMax = partyMax,
+        partyMax = 1,
+        largeImageKey = discordLargeImageKey ~= "" and discordLargeImageKey or nil,
+        largeImageText = "ShiftLine",
         matchSecret = nil,
         joinSecret = nil,
         spectateSecret = nil,
         }
 
     if discordEnabled then
-        discordRPC.updatePresence(presence)
+        discordSDK.update(presence)
     end
-
-    main.pendingDiscordJoinSecret = getDiscordJoinSecretFromArguments()
 
 
     nextPresenceUpdate = 0
@@ -553,9 +621,10 @@ function love.update(dt)
 
 
 
-    local songTitle = getSongTitleForPresence()
-    if presence.details ~= songTitle then
-        presence.details = songTitle
+    local details, state = getDiscordPresenceFields()
+    if presence.details ~= details or presence.state ~= state then
+        presence.details = details
+        presence.state = state
         nextPresenceUpdate = 0
     end
 
@@ -582,19 +651,16 @@ function love.update(dt)
     if discordEnabled then
         local now = love.timer.getTime()
         if nextPresenceUpdate < now then
-            discordRPC.updatePresence(presence)
+            discordSDK.update(presence)
             nextPresenceUpdate = now + 2.0
         end
-        discordRPC.runCallbacks()
-    end
-
-    local pendingJoinSecret = main.pendingDiscordJoinSecret
-    if pendingJoinSecret then
-        main.pendingDiscordJoinSecret = nil
-        onlineMode = true
-        changeProgram(9)
-        if online_room and online_room.joinWithRoomID then
-            online_room.joinWithRoomID(pendingJoinSecret)
+        discordSDK.updateCallback()
+        for _ = 1, 8 do
+            local event = discordSDK.pollEvent()
+            if not event then
+                break
+            end
+            handleDiscordEvent(event)
         end
     end
 
@@ -700,9 +766,7 @@ love.mouse.setVisible(true)
 
 
 
-    --DiscordRPCのゲームIDの変更
     if program == online or program == online_room or program == online_musicselect or program == online_play or program == online_result then
-        presence.details = "オンラインプレイ中"
         presence.partyMax = 4
         presence.partySize = online_connect.getPartyCount()
     end
@@ -711,6 +775,17 @@ end
 
 
 love.mousepressed = function(x, y, button, istouch, presses)
+    if #discordActivityInvites > 0 then
+        if button == 1 then
+            local dialogX, dialogY, dialogWidth, dialogHeight = getDiscordInviteDialogBounds()
+            if x >= dialogX and x <= dialogX + dialogWidth and
+                y >= dialogY + dialogHeight - 56 and y <= dialogY + dialogHeight then
+                respondToNextDiscordInvite(x < dialogX + dialogWidth / 2)
+            end
+        end
+        return
+    end
+
     if console and console.active then
         return
     end
@@ -780,6 +855,8 @@ end
         console.draw()
     end
 
+    drawDiscordInviteDialog()
+
 end
 
 function love.resize(w, h)
@@ -829,7 +906,7 @@ function love.quit()
     settings.save()
     gamejolt.quit()
     if discordEnabled then
-        discordRPC.shutdown()
+        discordSDK.shutdown()
     end
     log.info("exit game")
 end
@@ -869,6 +946,15 @@ end
 
 
 function love.keypressed(key, scancode, isrepeat)
+    if #discordActivityInvites > 0 then
+        if key == "return" or key == "space" or key == "kpenter" then
+            respondToNextDiscordInvite(true)
+        elseif key == "escape" then
+            respondToNextDiscordInvite(false)
+        end
+        return
+    end
+
     if coreInput.keypressed(key, scancode, isrepeat) then
         return
     end
