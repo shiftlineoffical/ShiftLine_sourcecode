@@ -117,7 +117,7 @@ local network = {}
 
 
 network.SERVER_URL =
-    "wss://shiftline-server.cloudoam.workers.dev/ws"
+    "wss://shiftline-cloudwolker.cloudoam.workers.dev/ws"
 
 network.VERSION = 1
 
