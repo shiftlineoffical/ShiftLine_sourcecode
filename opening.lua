@@ -1,5 +1,5 @@
 ﻿local opening = {}
-
+local cloudwolkerAuth = require("cloudwolker_auth")
 local displayWidth, displayHeight = love.graphics.getDimensions()
 
 local gamejolt = require("gamejolt")
@@ -12,6 +12,15 @@ local okHttp, http = pcall(require, "socket.http")
 if not okHttp then
     http = nil
 end
+
+
+local discordLoginInProgress = false
+local discordLoginFinished = false
+local discordLoginError = nil
+local discordLoginUser = nil
+local discordLoginStartedAt = 0
+
+local DISCORD_LOGIN_TIMEOUT = 120
 
 local BACKSPACE_REPEAT_DELAY = 0.4
 local BACKSPACE_REPEAT_INTERVAL = 0.05
@@ -102,7 +111,103 @@ local function updateDisplaySize()
 
     return false
 end
+local function startDiscordLogin()
+    cloudwolkerLog("========================================")
+    cloudwolkerLog("Discord login start")
 
+    if discordLoginInProgress then
+        cloudwolkerLog("Already logging in")
+        return
+    end
+
+    statusText = ""
+    statusIsError = false
+
+    discordLoginInProgress = true
+    discordLoginFinished = false
+    discordLoginError = nil
+    discordLoginUser = nil
+    discordLoginStartedAt = love.timer.getTime()
+
+    local url =
+        "https://shiftline-cloudwolker.cloudoam.workers.dev/auth/discord"
+
+    cloudwolkerLog("Login URL:")
+    cloudwolkerLog(url)
+
+    cloudwolkerLog(
+        "Calling love.system.openURL()..."
+    )
+
+    local ok, result =
+        pcall(function()
+            return love.system.openURL(url)
+        end)
+
+    cloudwolkerLog(
+        "openURL pcall result:",
+        tostring(ok)
+    )
+
+    cloudwolkerLog(
+        "openURL return value:",
+        tostring(result)
+    )
+
+    if not ok then
+        discordLoginInProgress = false
+
+        discordLoginError =
+            tostring(result)
+
+        statusText =
+            "ブラウザを開けませんでした"
+
+        statusIsError = true
+
+        cloudwolkerLog(
+            "ERROR: openURL threw an error"
+        )
+
+        cloudwolkerLog(
+            tostring(result)
+        )
+
+        return
+    end
+
+    if result == false then
+        discordLoginInProgress = false
+
+        statusText =
+            "ブラウザを開けませんでした"
+
+        statusIsError = true
+
+        cloudwolkerLog(
+            "ERROR: openURL returned false"
+        )
+
+        return
+    end
+
+    cloudwolkerLog(
+        "Browser launch requested successfully"
+    )
+
+    statusText =
+        "ブラウザでDiscordにログインしてください"
+
+    statusIsError = false
+
+    cloudwolkerLog(
+        "Waiting for Discord callback..."
+    )
+
+    cloudwolkerLog(
+        "========================================"
+    )
+end
 local function pointInRect(px, py, r)
     if type(r) ~= "table" then
         return false
@@ -711,6 +816,331 @@ local function pushLoginToMain(authenticatedOverride)
         avatarUrl = status.avatarUrl or ""
     })
 end
+local function pushCloudwolkerLoginToMain(auth)
+    if type(App) ~= "table"
+        or type(App.setLogin) ~= "function" then
+        return
+    end
+
+    if type(auth) ~= "table" then
+        return
+    end
+
+    local user = auth.user or {}
+
+    App.setLogin({
+        authenticated = true,
+
+        userid = "",
+        user_token = "",
+
+        username =
+            user.displayName
+            or auth.displayName
+            or "",
+
+        userId =
+            user.id
+            or auth.userId
+            or "",
+
+        avatarUrl =
+            user.avatarUrl
+            or auth.avatarUrl
+            or "",
+
+        avatarVersion =
+            tonumber(
+                user.avatarVersion
+                or auth.avatarVersion
+                or 0
+            ) or 0,
+
+        sessionToken =
+            auth.token
+            or auth.sessionToken
+            or "",
+
+        sessionExpiresAt =
+            tonumber(
+                auth.expiresAt
+                or 0
+            ) or 0,
+
+        provider = "discord"
+    })
+end
+
+local function startDiscordLogin()
+    if discordLoginInProgress then
+        return
+    end
+
+    statusText = ""
+    statusIsError = false
+
+    discordLoginInProgress = true
+    discordLoginFinished = false
+    discordLoginError = nil
+    discordLoginUser = nil
+    discordLoginStartedAt = love.timer.getTime()
+
+    local ok, result =
+        pcall(function()
+            return cloudwolkerAuth.startDiscordLogin()
+        end)
+
+    if not ok then
+        discordLoginInProgress = false
+        discordLoginError = tostring(result)
+
+        statusText =
+            "Discordログインを開始できませんでした"
+
+        statusIsError = true
+
+        return
+    end
+
+    if result == false then
+        discordLoginInProgress = false
+        discordLoginError =
+            "Discord login start failed"
+
+        statusText =
+            "Discordログインを開始できませんでした"
+
+        statusIsError = true
+
+        return
+    end
+
+    statusText =
+        "ブラウザでDiscordにログインしてください"
+
+    statusIsError = false
+end
+
+local function finishDiscordLogin(uri)
+    cloudwolkerLog(
+        "finishDiscordLogin()"
+    )
+
+    cloudwolkerLog(
+        "URI type:",
+        type(uri)
+    )
+
+    cloudwolkerLog(
+        "URI:",
+        tostring(uri)
+    )
+
+    if type(uri) ~= "string"
+        or uri == "" then
+
+        cloudwolkerLog(
+            "ERROR: URI is empty"
+        )
+
+        statusText =
+            "認証URIが空です"
+
+        statusIsError = true
+        discordLoginInProgress = false
+
+        return false
+    end
+
+    if not uri:match("^shiftline://auth") then
+
+        cloudwolkerLog(
+            "ERROR: URI does not start with shiftline://auth"
+        )
+
+        statusText =
+            "認証URIが不正です"
+
+        statusIsError = true
+        discordLoginInProgress = false
+
+        return false
+    end
+
+    cloudwolkerLog(
+        "URI format OK"
+    )
+
+    if not discordLoginInProgress then
+
+        cloudwolkerLog(
+            "ERROR: discordLoginInProgress is false"
+        )
+
+        statusText =
+            "Discordログイン処理が開始されていません"
+
+        statusIsError = true
+
+        return false
+    end
+
+    cloudwolkerLog(
+        "Calling cloudwolkerAuth.handleCallback()..."
+    )
+
+    local ok, result =
+        pcall(function()
+            return cloudwolkerAuth.handleCallback(uri)
+        end)
+
+    cloudwolkerLog(
+        "handleCallback pcall:",
+        tostring(ok)
+    )
+
+    cloudwolkerLog(
+        "handleCallback result type:",
+        type(result)
+    )
+
+    if not ok then
+        discordLoginInProgress = false
+
+        discordLoginError =
+            tostring(result)
+
+        cloudwolkerLog(
+            "ERROR: handleCallback threw error"
+        )
+
+        cloudwolkerLog(
+            tostring(result)
+        )
+
+        statusText =
+            "Cloudwolkerエラー"
+
+        statusIsError = true
+
+        return false
+    end
+
+    if type(result) ~= "table" then
+        discordLoginInProgress = false
+
+        cloudwolkerLog(
+            "ERROR: handleCallback did not return table"
+        )
+
+        cloudwolkerLog(
+            "Returned:",
+            tostring(result)
+        )
+
+        statusText =
+            "認証結果が不正です"
+
+        statusIsError = true
+
+        return false
+    end
+
+    cloudwolkerLog(
+        "handleCallback returned table"
+    )
+
+    cloudwolkerLog(
+        "Has token:",
+        tostring(
+            result.token ~= nil
+            or result.sessionToken ~= nil
+        )
+    )
+
+    cloudwolkerLog(
+        "Has user:",
+        tostring(result.user ~= nil)
+    )
+
+    cloudwolkerLog(
+        "Has error:",
+        tostring(result.error ~= nil)
+    )
+
+    if result.error then
+        discordLoginInProgress = false
+
+        discordLoginError =
+            tostring(result.error)
+
+        cloudwolkerLog(
+            "ERROR returned by Cloudwolker:",
+            tostring(result.error)
+        )
+
+        statusText =
+            "Cloudwolker認証失敗: "
+            .. tostring(result.error)
+
+        statusIsError = true
+
+        return false
+    end
+
+    if not result.token
+        and not result.sessionToken then
+
+        discordLoginInProgress = false
+
+        cloudwolkerLog(
+            "ERROR: No session token"
+        )
+
+        statusText =
+            "セッション情報がありません"
+
+        statusIsError = true
+
+        return false
+    end
+
+    cloudwolkerLog(
+        "Session token received"
+    )
+
+    discordLoginUser = result
+
+    cloudwolkerLog(
+        "Calling pushCloudwolkerLoginToMain()..."
+    )
+
+    pushCloudwolkerLoginToMain(result)
+
+    cloudwolkerLog(
+        "App.setLogin() completed"
+    )
+
+    discordLoginFinished = true
+    discordLoginInProgress = false
+
+    statusText =
+        "Discordログイン成功"
+
+    statusIsError = false
+
+    setFocusedField(nil)
+    setLoginUiOpen(false)
+
+    fadeOut = true
+    fadeAlpha = 0
+
+    cloudwolkerLog(
+        "Discord login completed successfully"
+    )
+
+    return true
+end
 
 local function attemptLogin()
     statusText = ""
@@ -884,6 +1314,11 @@ end
 
 function opening.load()
     updateDisplaySize()
+        discordLoginInProgress = false
+    discordLoginFinished = false
+    discordLoginError = nil
+    discordLoginUser = nil
+    discordLoginStartedAt = 0
 
     cachedUiRects = nil
     opening.endprocess = false
@@ -996,9 +1431,68 @@ function opening.load()
     backspaceRepeatTimer = 0
 
     love.keyboard.setTextInput(false)
+
 end
 
 function opening.update(dt)
+        if type(App) == "table"
+    and type(App.pendingAuthURI) == "string"
+    and App.pendingAuthURI ~= "" then
+
+    cloudwolkerLog(
+        "========================================"
+    )
+
+    cloudwolkerLog(
+        "Callback URI received from main.lua"
+    )
+
+    cloudwolkerLog(
+        "URI:",
+        App.pendingAuthURI
+    )
+
+    local uri =
+        App.pendingAuthURI
+
+    App.pendingAuthURI = nil
+
+    cloudwolkerLog(
+        "Calling finishDiscordLogin()..."
+    )
+
+    local ok, result =
+        pcall(function()
+            return finishDiscordLogin(uri)
+        end)
+
+    cloudwolkerLog(
+        "finishDiscordLogin pcall:",
+        tostring(ok)
+    )
+
+    cloudwolkerLog(
+        "finishDiscordLogin result:",
+        tostring(result)
+    )
+
+    if not ok then
+        cloudwolkerLog(
+            "ERROR:",
+            tostring(result)
+        )
+    end
+
+    cloudwolkerLog(
+        "========================================"
+    )
+
+        local uri = App.pendingAuthURI
+
+        App.pendingAuthURI = nil
+
+        finishDiscordLogin(uri)
+    end
     local resized =
         updateDisplaySize()
 
@@ -1090,7 +1584,32 @@ function opening.update(dt)
     end
 
     updateVideo()
+    if discordLoginInProgress then
+        local elapsed =
+            love.timer.getTime()
+            - discordLoginStartedAt
 
+        if elapsed >= DISCORD_LOGIN_TIMEOUT then
+            discordLoginInProgress = false
+
+            statusText =
+                "Discordログインがタイムアウトしました"
+
+            statusIsError = true
+        end
+
+        local ok, callback =
+            pcall(function()
+                return cloudwolkerAuth.pollCallback()
+            end)
+
+        if ok
+            and type(callback) == "string"
+            and callback ~= "" then
+
+            finishDiscordLogin(callback)
+        end
+    end
     button.x =
         displayWidth
         - button.w
@@ -1269,7 +1788,36 @@ function opening.mousepressed(
 
         return
     end
+        local discordButtonH =
+        math.max(
+            42,
+            math.floor(displayHeight * 0.05)
+        )
 
+    local discordButtonY =
+        loginBtn.y
+        + loginBtn.h
+        + panel.h * 0.12
+
+    local discordButton = {
+        x = loginBtn.x,
+        y = discordButtonY,
+        w = loginBtn.w,
+        h = discordButtonH
+    }
+
+    if pointInRect(
+        x,
+        y,
+        discordButton
+    ) then
+
+        if not discordLoginInProgress then
+            startDiscordLogin()
+        end
+
+        return
+    end
     if pointInRect(
         x,
         y,
@@ -1767,7 +2315,78 @@ local function drawLoginUi()
         loginLabelX,
         loginLabelY
     )
+        local discordButtonH =
+        math.max(
+            42,
+            math.floor(displayHeight * 0.05)
+        )
 
+    local discordButtonY =
+        loginBtn.y
+        + loginBtn.h
+        + panel.h * 0.12
+
+    local discordButton = {
+        x = loginBtn.x,
+        y = discordButtonY,
+        w = loginBtn.w,
+        h = discordButtonH
+    }
+
+    love.graphics.setColor(
+        0.20,
+        0.20,
+        0.24,
+        a
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        discordButton.x,
+        discordButton.y,
+        discordButton.w,
+        discordButton.h
+    )
+
+    love.graphics.setColor(
+        1,
+        1,
+        1,
+        a
+    )
+
+    love.graphics.rectangle(
+        "line",
+        discordButton.x,
+        discordButton.y,
+        discordButton.w,
+        discordButton.h
+    )
+
+    local discordText =
+        discordLoginInProgress
+        and "Discordログイン中..."
+        or "Discordでログイン"
+
+    local discordTextX =
+        discordButton.x
+        + (
+            discordButton.w
+            - font:getWidth(discordText)
+        ) / 2
+
+    local discordTextY =
+        discordButton.y
+        + (
+            discordButton.h
+            - font:getHeight()
+        ) / 2
+
+    love.graphics.print(
+        discordText,
+        discordTextX,
+        discordTextY
+    )
     if statusText ~= "" then
         if statusIsError then
             love.graphics.setColor(
